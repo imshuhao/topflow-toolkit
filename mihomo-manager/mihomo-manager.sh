@@ -318,9 +318,9 @@ compare_versions() {
 
 fetch_latest_release() {
     release_file="$1"
-    # Finish before rpcd's 30-second execution limit.
-    if ! curl -fsSL --connect-timeout 5 --max-time 20 \
-        -A MU5252-Mihomo-Manager -o "$release_file" "$RELEASE_API" >>"$ACTION_LOG" 2>&1; then
+    # Use the same working route as core downloads. Two bounded attempts fit
+    # within the page's 25-second timeout and rpcd's 30-second execution limit.
+    if ! download_release_file "$release_file" "$RELEASE_API" 10 4; then
         return 1
     fi
     RELEASE_TAG="$(jsonfilter -i "$release_file" -e '@.tag_name' 2>/dev/null)"
@@ -363,23 +363,25 @@ local_proxy_url() {
     printf 'http://%s:%s' "$NS_IP" "$proxy_port"
 }
 
-download_release_asset() {
+download_release_file() {
     output="$1"
     url="$2"
+    download_max_time="${3:-300}"
+    download_connect_timeout="${4:-15}"
     proxy_url=""
     if service_running && namespace_present; then
         proxy_url="$(local_proxy_url 2>/dev/null || true)"
     fi
     if [ -n "$proxy_url" ]; then
         echo "通过本机 Mihomo 代理下载" >>"$ACTION_LOG"
-        if curl -fsSL --proxy "$proxy_url" --connect-timeout 15 --max-time 300 \
+        if curl -fsSL --proxy "$proxy_url" --connect-timeout "$download_connect_timeout" --max-time "$download_max_time" \
             -A MU5252-Mihomo-Manager -o "$output" "$url" >>"$ACTION_LOG" 2>&1; then
             return 0
         fi
         rm -f "$output"
         echo "代理下载失败，改用设备直连" >>"$ACTION_LOG"
     fi
-    curl -fsSL --connect-timeout 15 --max-time 300 \
+    curl -fsSL --connect-timeout "$download_connect_timeout" --max-time "$download_max_time" \
         -A MU5252-Mihomo-Manager -o "$output" "$url" >>"$ACTION_LOG" 2>&1
 }
 
@@ -438,7 +440,7 @@ core_update_apply() {
     fi
 
     echo "下载 $RELEASE_NAME" >>"$ACTION_LOG"
-    if ! download_release_asset "$package_file" "$RELEASE_URL"; then
+    if ! download_release_file "$package_file" "$RELEASE_URL"; then
         result 0 "核心下载失败，请查看日志"
         return
     fi
