@@ -1,14 +1,35 @@
 # mwan3 tuning
 
-修复普通 MULTIWAN 模式下三个相互关联的问题：
+为普通 MULTIWAN 模式配置定制分流，并改善链路质量检测和故障连接清理：
 
-1. 原厂全流量规则排在 HTTPS sticky 前面，导致 sticky 实际不命中；
-2. 蜂窝链路只做单次极小 Ping，不生成可用延迟/丢包质量；
-3. 任一 WAN 事件会清空整个 conntrack 表。
+1. 明确 Mihomo 非 sticky HTTPS、普通 LAN sticky HTTPS、IPv4 默认规则的匹配顺序；
+2. 将原厂单次极小 Ping、关闭质量判断的配置改为延迟/丢包采样及多轮防抖；
+3. 将原厂 WAN 上下线事件的全局 conntrack 清理改为按故障线路清理。
 
-组件为 Mihomo 虚拟网关单独保留非 sticky HTTPS 分流，普通 LAN HTTPS 保持 600 秒
-sticky；三路蜂窝采用短采样、多轮防抖；线路失败时只删除对应 fwmark 的 IPv4
+这里的 HTTPS 规则限定为 IPv4 TCP/443：Mihomo 虚拟网关使用非 sticky 分流，普通 LAN
+保持 600 秒 sticky；不包括 UDP/443 QUIC。线路失败时只删除对应 fwmark 的 IPv4
 conntrack，恢复事件不清理健康连接。
+
+## B22 核对结论
+
+2026-09-25 对比 B20/B22 原厂文件并只读检查 B22 实机后，确认：
+
+| 项目 | B22 原厂行为 | 本组件的作用 |
+| --- | --- | --- |
+| HTTPS 顺序 | `etc/config/mwan3` 中 `https` 已在 `default_rule_v4` 前；生成器设置规则但不纠正已有错序 | 安装 Mihomo 与普通 LAN 的定制分流及明确顺序，不再称为修复原厂 HTTPS 错序 |
+| 质量检测 | 生成器仍设置 `count=1`、`size=2`、`check_quality=0` | 启用延迟/丢包采样及防抖，仍有必要 |
+| 连接清理 | `ifup`、`ifdown`、`connected`、`disconnected` 仍可触发全局清理 | 仅在失败事件按线路 IPv4 mark 删除连接，仍有必要 |
+
+B20 的出厂规则顺序也正确。此前设备保存配置中出现过的错序，不能泛化为 B20/B22
+出厂配置的必然缺陷；保留定制规则安装也不代表 B22 必须修复 HTTPS 顺序。
+
+`sdx75_set_mwan3.sh`、`lib/mwan3/mwan3.sh`、`mwan3track`、`15-mwan3` 和
+`etc/config/mwan3` 在两个固件中逐字节相同。B22 修改了另一份 `mwan_monitor.sh`
+的探测周期及 SMULTIWAN 活动出口管理，未替代上述普通 MULTIWAN 调整。
+
+当次实机三路蜂窝 IPv4 均在线，质量采样已启用，`flush_conntrack` 已移除，定制规则
+顺序正确且有实际命中。这次未注入断线或切换聚合模式；具体探测目标和阈值仍需按网络
+环境评估，不能据此认定为所有地区的最优参数。
 
 ## 不分发厂商脚本
 

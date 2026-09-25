@@ -86,7 +86,7 @@
 | [`mihomo-manager`](mihomo-manager/) | 将状态、模式、配置、核心更新和网络开关接入设备原生 WebUI | 实机运行 |
 | [`touchscreen-control-center`](touchscreen-control-center/) | 通过 `LD_PRELOAD` 扩展原厂 LVGL，管理三基带、Mihomo、系统、散热和 Wi-Fi | 实机运行 |
 | [`timekeeper`](timekeeper/) | 用 Qualcomm `time_genoff` 在联网前恢复可信时间，避免 1970 年阻断 TLS | 实机验证 |
-| [`mwan3-tuning`](mwan3-tuning/) | 修复普通模式规则顺序、质量探测和全局 conntrack 清理 | 公开安装器迁移及重启实机验证 |
+| [`mwan3-tuning`](mwan3-tuning/) | 配置普通模式 Mihomo/HTTPS 分流，改善质量探测并按故障线路清理连接 | 公开安装器迁移及重启实机验证 |
 | [`web-full-menu`](web-full-menu/) | 从目标设备当前文件生成完整隐藏菜单，保持登录与后端权限边界 | 公开安装器部署及重启实机验证 |
 | [`zwrt-datad-tools`](zwrt-datad-tools/) | 检查、更新、健康验证并回滚触屏所依赖的上游数据服务 | v0.9.21 实机验证 |
 | [`vendor-control`](vendor-control/) | 停用原厂 MQTT 并关闭三路二次认证，检查配置和实际拦截状态 | B22 实机验证 |

@@ -1,7 +1,7 @@
 #!/bin/sh
 
-# Repair the currently saved rule order and cellular quality policy without
-# changing WAN mode.
+# Install custom Mihomo/LAN rule precedence and tune cellular quality without
+# changing WAN mode. Stock B20/B22 already order HTTPS before the default rule.
 
 set -u
 
