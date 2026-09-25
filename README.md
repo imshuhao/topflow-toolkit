@@ -89,6 +89,7 @@
 | [`mwan3-tuning`](mwan3-tuning/) | 修复普通模式规则顺序、质量探测和全局 conntrack 清理 | 公开安装器迁移及重启实机验证 |
 | [`web-full-menu`](web-full-menu/) | 从目标设备当前文件生成完整隐藏菜单，保持登录与后端权限边界 | 公开安装器部署及重启实机验证 |
 | [`zwrt-datad-tools`](zwrt-datad-tools/) | 检查、更新、健康验证并回滚触屏所依赖的上游数据服务 | v0.9.21 实机验证 |
+| [`vendor-control`](vendor-control/) | 停用原厂 MQTT 并关闭三路二次认证，检查配置和实际拦截状态 | B22 实机验证 |
 
 各组件可以分别阅读和部署。触屏网络页面依赖本机 `zwrt-datad /state`，Mihomo 触屏页面依赖 `mihomo-manager`；完整菜单应安装在 Manager 之后。
 

@@ -4,7 +4,7 @@ TOUCH_DIR := touchscreen-control-center
 TIMEKEEPER_DIR := timekeeper
 BUILD_DIR := build
 POSIX_DIRS := mihomo-manager mihomo-netns touchscreen-control-center \
-	timekeeper mwan3-tuning web-full-menu tests firmware
+	timekeeper mwan3-tuning web-full-menu vendor-control tests firmware
 SHELLCHECK_DIRS := $(POSIX_DIRS) zwrt-datad-tools
 UNAME_S := $(shell uname -s)
 TOUCH_LIBS := -pthread
