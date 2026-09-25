@@ -9,7 +9,7 @@ import test from "node:test";
 const here = dirname(fileURLToPath(import.meta.url));
 const patcher = resolve(here, "../patch-webui.mjs");
 
-test("adds one authenticated route and remains idempotent", () => {
+for (const legacy of [false, true]) test(`styles one authenticated route and remains idempotent (legacy=${legacy})`, () => {
   const work = mkdtempSync(resolve(tmpdir(), "mu5252-webui-test-"));
   try {
     const inputIndex = resolve(work, "index.html");
@@ -21,7 +21,9 @@ test("adds one authenticated route and remains idempotent", () => {
 
     writeFileSync(
       inputIndex,
-      '<div id="sidebarMenu"><ul><li>stock</li></ul></div><div id="mobileLogout"></div>\n',
+      '<div id="sidebarMenu"><ul><li>stock</li>' +
+        (legacy ? '<li class="nav"><a href="#mihomo_manager" class="children-link">Mihomo 代理与网关管理</a></li>' : '') +
+        '</ul></div><div id="mobileLogout"></div>\n',
     );
     writeFileSync(inputMenu, 'define(function(){return[{hash:"#home"}]});\n');
 
@@ -31,6 +33,7 @@ test("adds one authenticated route and remains idempotent", () => {
     const index = readFileSync(firstIndex, "utf8");
     const menu = readFileSync(firstMenu, "utf8");
     assert.equal(index.match(/href="#mihomo_manager"/g)?.length, 1);
+    assert.match(index, /<li class="navigation-drawer -router">\s*<a href="#mihomo_manager" class="parent-link link">/);
     assert.equal(menu.match(/hash:"#mihomo_manager"/g)?.length, 1);
     assert.match(menu, /requireLogin:!0/);
     assert.equal(readFileSync(secondIndex, "utf8"), index);

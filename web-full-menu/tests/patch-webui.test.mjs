@@ -12,7 +12,7 @@ const redirect =
   '["#TracingTool","#modem_log","#syslog_level","#tcpdump_menu"].every(Boolean)' +
   '||licenseChecked&&window.location.replace("#check_license")';
 
-test("builds the full menu without vendor fixtures and remains idempotent", () => {
+for (const legacy of [false, true]) test(`deduplicates Manager and full menu and remains idempotent (legacy=${legacy})`, () => {
   const work = mkdtempSync(resolve(tmpdir(), "topflow-full-menu-test-"));
   try {
     const index = resolve(work, "index.html");
@@ -35,6 +35,15 @@ test("builds the full menu without vendor fixtures and remains idempotent", () =
         '<p data-trans="network_locked_explain"></p>' +
         '<p data-bind="visible:supportUnlock && times()==0" data-trans="network_locked_zero_times"></p>\n',
     );
+
+    // Exercise both the deployed legacy input and the fixed Manager layer.
+    if (legacy) {
+      writeFileSync(index, readFileSync(index, "utf8").replace("</ul>",
+        '<li class="nav"><a href="#mihomo_manager" class="children-link">Mihomo 代理与网关管理</a></li></ul>'));
+    } else execFileSync(process.execPath, [
+      resolve(here, "../../mihomo-manager/patch-webui.mjs"),
+      index, menu, index, menu,
+    ]);
 
     execFileSync(process.execPath, [
       patcher,
@@ -61,6 +70,7 @@ test("builds the full menu without vendor fixtures and remains idempotent", () =
     const patchedNck = readFileSync(resolve(first, "network_lock.html"), "utf8");
 
     assert.equal(patchedIndex.match(/Start TopFlow full menu/g)?.length, 1);
+    assert.equal(patchedIndex.match(/href="#mihomo_manager"/g)?.length, 1);
     assert.equal(patchedMenu.match(/hash:"#mihomo_manager"/g)?.length, 1);
     assert.doesNotMatch(patchedRouter, /licenseChecked/);
     assert.match(patchedNck, /运营商网络解锁（NCK）/);

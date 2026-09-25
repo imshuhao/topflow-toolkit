@@ -62,6 +62,14 @@ const existingBlock = new RegExp(
 );
 index = index.replace(existingBlock, "");
 
+// The full menu owns the one Mihomo link while this overlay is installed.
+// Its lower Manager layer retains the standalone entry for uninstall/rollback.
+if (includeMihomo) {
+  index = index
+    .replace(/<!-- Start TopFlow Mihomo menu\. -->[\s\S]*?<!-- End TopFlow Mihomo menu\. -->\s*/g, "")
+    .replace(/<li class="nav"><a href="#mihomo_manager" class="children-link">Mihomo 代理与网关管理<\/a><\/li>\r?\n?/g, "");
+}
+
 const mihomoEntry = includeMihomo
   ? '<li class="nav"><a href="#mihomo_manager" class="children-link">Mihomo 代理与网关管理</a></li>'
   : "";
