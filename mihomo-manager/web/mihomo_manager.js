@@ -9,7 +9,7 @@ define(["jquery", "service_helper"], function ($, serviceHelper) {
     var coreUpdateAvailable = false;
     var coreChecking = false;
 
-    function rpc(method, params, done) {
+    function rpc(method, params, done, timeout) {
         var request = serviceHelper.createRequest("mihomo.api", method, params || {});
         $.ajax({
             type: "POST",
@@ -18,7 +18,8 @@ define(["jquery", "service_helper"], function ($, serviceHelper) {
             dataType: "json",
             contentType: "application/json",
             headers: { "Z-Mode": "0", "Z-Tag": method },
-            cache: false
+            cache: false,
+            timeout: timeout || 0
         }).done(function (response) {
             var entry = response && response[0];
             if (!entry || entry.error || !entry.result || entry.result[0] !== 0) {
@@ -26,8 +27,11 @@ define(["jquery", "service_helper"], function ($, serviceHelper) {
                 return;
             }
             done(null, entry.result[1] || {});
-        }).fail(function () {
-            done(new Error("无法连接设备管理接口"));
+        }).fail(function (xhr) {
+            var rejected = xhr && (xhr.status === 401 || xhr.status === 403);
+            var error = new Error(rejected ? "设备拒绝了此操作，请重新登录后再试" : "无法连接设备管理接口");
+            error.connectionLost = !rejected;
+            done(error);
         });
     }
 
@@ -215,12 +219,14 @@ define(["jquery", "service_helper"], function ($, serviceHelper) {
         if (busy) return;
         if (!silent) setMessage("正在读取设备状态……", false);
         rpc("status", {}, function (error, data) {
+            // A poll started before an update must not overwrite its progress.
+            if (busy) return;
             if (error) {
                 setMessage(error.message, true);
                 return;
             }
             render(data);
-            if (!silent) setMessage("", false);
+            setMessage("", false);
         });
     }
 
@@ -289,22 +295,67 @@ define(["jquery", "service_helper"], function ($, serviceHelper) {
         });
     }
 
+    function confirmCoreUpdate(latest, previousState, confirmedMessage) {
+        var deadline = Date.now() + 120000;
+        var wasRunning = previousState && previousState.service_running;
+        var previousPid = previousState && previousState.pid;
+        setLocalMessage("#mm-core-message", confirmedMessage ?
+            "等待服务恢复…" : "正在确认更新…", false);
+
+        function poll() {
+            rpc("status", {}, function (error, data) {
+                if (error && !error.connectionLost) {
+                    setBusy(false);
+                    setLocalMessage("#mm-core-message", error.message, true);
+                    return;
+                }
+                if (!error && data.ok) {
+                    render(data);
+                    setMessage("", false);
+                    var versionMatches = versionParts(data.version).version === "Mihomo " + latest;
+                    var serviceReady = !wasRunning || (data.service_running && data.namespace_present && data.controller_listening);
+                    // The installed binary can change before the old process stops.
+                    var restarted = !!confirmedMessage || !wasRunning || (data.pid && previousPid && data.pid !== previousPid);
+                    if (versionMatches && serviceReady && restarted) {
+                        coreUpdateAvailable = false;
+                        setBusy(false);
+                        setLocalMessage("#mm-core-message", confirmedMessage ||
+                            ("核心已更新到 " + latest + (wasRunning ? "，Mihomo 已恢复运行" : "")), false);
+                        return;
+                    }
+                }
+                if (Date.now() >= deadline) {
+                    setBusy(false);
+                    setLocalMessage("#mm-core-message", "暂未确认更新完成，请检查设备连接和运行日志后再试", true);
+                    return;
+                }
+                window.setTimeout(poll, 2000);
+            }, Math.min(5000, Math.max(1, deadline - Date.now())));
+        }
+        poll();
+    }
+
     function applyCoreUpdate() {
         if (busy || !coreUpdateAvailable) return;
         var latest = $("#mm-latest-version").text();
         if (!window.confirm("更新到 " + latest + " 会重启 Mihomo，是否继续？")) return;
+        var previousState = state;
         setBusy(true);
-        setLocalMessage("#mm-core-message", "正在下载、校验并更新核心……", false);
+        setMessage("", false);
+        setLocalMessage("#mm-core-message", "正在更新核心…", false);
         rpc("core_update_apply", {}, function (error, data) {
+            // Never repeat the write: a lost response can mean the restart succeeded.
+            if ((error && error.connectionLost) || (!error && data.ok)) {
+                confirmCoreUpdate(latest, previousState, error ? "" : (data.message || "核心更新完成"));
+                return;
+            }
             if (error) {
                 setBusy(false);
                 setLocalMessage("#mm-core-message", error.message, true);
                 return;
             }
-            if (data.ok) coreUpdateAvailable = false;
             setBusy(false);
-            setLocalMessage("#mm-core-message", data.message || (data.ok ? "核心更新完成" : "核心更新失败"), !data.ok);
-            if (data.ok) window.setTimeout(function () { loadStatus(true); }, 800);
+            setLocalMessage("#mm-core-message", data.message || "核心更新失败", true);
         });
     }
 
