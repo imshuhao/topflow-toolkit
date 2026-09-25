@@ -1,0 +1,83 @@
+[
+  {
+    "Package": "unshare",
+    "Version": "2.39-2",
+    "Filename": "unshare_2.39-2_aarch64_cortex-a53.ipk",
+    "Size": "30793",
+    "SHA256sum": "3bf3191c2e3367046de6a7de1c20ad7187c59d2143bfccff453e773e512c79a4",
+    "License": "GPL-2.0-only",
+    "url": "https://downloads.openwrt.org/releases/23.05.4/packages/aarch64_cortex-a53/base/unshare_2.39-2_aarch64_cortex-a53.ipk"
+  },
+  {
+    "Package": "uhttpd",
+    "Version": "2023-06-25-34a8a74d-2",
+    "Filename": "uhttpd_2023-06-25-34a8a74d-2_aarch64_cortex-a53.ipk",
+    "Size": "31670",
+    "SHA256sum": "ab634ce91ef321ead353fd600825f02c605bc6124b1d8bdc2f264b0b1c8075db",
+    "License": "ISC",
+    "url": "https://downloads.openwrt.org/releases/23.05.4/packages/aarch64_cortex-a53/base/uhttpd_2023-06-25-34a8a74d-2_aarch64_cortex-a53.ipk"
+  },
+  {
+    "Package": "uhttpd-mod-ubus",
+    "Version": "2023-06-25-34a8a74d-2",
+    "Filename": "uhttpd-mod-ubus_2023-06-25-34a8a74d-2_aarch64_cortex-a53.ipk",
+    "Size": "9453",
+    "SHA256sum": "a6c5c850b0bf163c6f879c1a99ee88fe2dda26fec8073e492ffaf8aec0bea566",
+    "License": "ISC",
+    "url": "https://downloads.openwrt.org/releases/23.05.4/packages/aarch64_cortex-a53/base/uhttpd-mod-ubus_2023-06-25-34a8a74d-2_aarch64_cortex-a53.ipk"
+  },
+  {
+    "Package": "ucode-mod-uloop",
+    "Version": "2024-07-11-1a8a0bcf-3",
+    "Filename": "ucode-mod-uloop_2024-07-11-1a8a0bcf-3_aarch64_cortex-a53.ipk",
+    "Size": "9352",
+    "SHA256sum": "5e53cde0d2326adf3f9b5cc9b5de5c8027ef028f417479b56cebcef5b828fd57",
+    "License": "ISC",
+    "url": "https://downloads.openwrt.org/releases/23.05.4/packages/aarch64_cortex-a53/base/ucode-mod-uloop_2024-07-11-1a8a0bcf-3_aarch64_cortex-a53.ipk"
+  },
+  {
+    "Package": "luci-base",
+    "Version": "git-25.222.75657-7ce34fe",
+    "Filename": "luci-base_git-25.222.75657-7ce34fe_aarch64_cortex-a53.ipk",
+    "Size": "126555",
+    "SHA256sum": "cc0a3c4b44ef5b0aae984e20f0701466aa8ca103ec7f463aad6d74855a929785",
+    "License": "MIT",
+    "url": "https://downloads.openwrt.org/releases/23.05.4/packages/aarch64_cortex-a53/luci/luci-base_git-25.222.75657-7ce34fe_aarch64_cortex-a53.ipk"
+  },
+  {
+    "Package": "luci-mod-status",
+    "Version": "git-25.222.75657-7ce34fe",
+    "Filename": "luci-mod-status_git-25.222.75657-7ce34fe_aarch64_cortex-a53.ipk",
+    "Size": "39803",
+    "SHA256sum": "73907447fe653e82ba2ca7c1f2d5991b0bc442dc38e86a28344a661cb8dc5741",
+    "License": "Apache-2.0",
+    "url": "https://downloads.openwrt.org/releases/23.05.4/packages/aarch64_cortex-a53/luci/luci-mod-status_git-25.222.75657-7ce34fe_aarch64_cortex-a53.ipk"
+  },
+  {
+    "Package": "luci-theme-bootstrap",
+    "Version": "git-25.222.75657-7ce34fe",
+    "Filename": "luci-theme-bootstrap_git-25.222.75657-7ce34fe_all.ipk",
+    "Size": "16961",
+    "SHA256sum": "c08f94ac865bd2ff4307a9765c32219d532eb3307ee464756e2a71e5c27875d8",
+    "License": "Apache-2.0",
+    "url": "https://downloads.openwrt.org/releases/23.05.4/packages/aarch64_cortex-a53/luci/luci-theme-bootstrap_git-25.222.75657-7ce34fe_all.ipk"
+  },
+  {
+    "Package": "luci-lib-nixio",
+    "Version": "git-25.222.75657-7ce34fe",
+    "Filename": "luci-lib-nixio_git-25.222.75657-7ce34fe_aarch64_cortex-a53.ipk",
+    "Size": "34724",
+    "SHA256sum": "c958c326666d06245f8c2efbd5875a5a1951288a3a2babe05f34db426c9e5190",
+    "License": "Apache-2.0",
+    "url": "https://downloads.openwrt.org/releases/23.05.4/packages/aarch64_cortex-a53/luci/luci-lib-nixio_git-25.222.75657-7ce34fe_aarch64_cortex-a53.ipk"
+  },
+  {
+    "Package": "luci-i18n-base-zh-cn",
+    "Version": "git-25.222.75657-7ce34fe",
+    "Filename": "luci-i18n-base-zh-cn_git-25.222.75657-7ce34fe_all.ipk",
+    "Size": "55506",
+    "SHA256sum": "50d1f244fb630bd27ffe9eca553d34bfe1d2008e326b0d7f32d526c0e97a402a",
+    "License": "MIT",
+    "url": "https://downloads.openwrt.org/releases/23.05.4/packages/aarch64_cortex-a53/luci/luci-i18n-base-zh-cn_git-25.222.75657-7ce34fe_all.ipk"
+  }
+]

@@ -16,6 +16,11 @@ bind mount 接入原厂系统。普通重启会保留这些改动；后台的“
 
 ## 推荐卸载顺序
 
+如果安装了独立 LuCI，先运行 `python3 luci-admin/manage.py status` 检查自己的服务，
+再运行 `python3 luci-admin/manage.py uninstall`。它不提供 `--check` 参数；
+卸载后保留 `/data/local/luci-readonly/backups/` 和本机私有恢复凭据。
+需先卸载 LuCI，再移除它依赖的 Mihomo Manager 或 zwrt-datad。
+
 | 顺序 | 组件 | 检查与卸载 | 恢复结果 |
 | --- | --- | --- | --- |
 | 1 | 完整 WebUI 菜单 | `./web-full-menu/uninstall.sh --check`<br>`./web-full-menu/uninstall.sh` | 移除最上层 Web 文件挂载，露出 Mihomo Manager 或原厂页面 |

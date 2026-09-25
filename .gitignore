@@ -26,3 +26,8 @@ providers/
 
 __pycache__/
 *.pyc
+
+# LuCI packages and any local device validation material.
+*.ipk
+sensitive/
+device-captures/

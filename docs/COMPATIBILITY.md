@@ -28,6 +28,7 @@ MU5252 是内部硬件标识，不是项目名，也不代表其他
 | 时间 | `/usr/lib/libtime_genoff.so.1`、基准 12、原厂 RTC/SNTP UBus 对象 |
 | 触屏 | 非 PIE `zte_topsw_devui`、LVGL ABI、进程内函数/素材地址和启动顺序 |
 | 持久化 | `/data`、procd/OpenWrt init，以及 `/etc/rc.local` fallback |
+| LuCI | B22、固定 `192.168.11.1` / `br-lan`、官方 23.05.4 aarch64 包、Mihomo Manager 可写 ACL、兼容的本机 datad 控制接口 |
 
 `zwrt-datad` 要求上游 v0.9.21 或更新版本；更高版本仍需通过健康检查和界面实测，不能
 仅凭版本号推断所有 schema/控制能力不变。
@@ -51,3 +52,6 @@ FOTA 可能替换 `rc.local`，但保留 `/data`。升级后从新固件重新�
 
 2026-09-25 完成原厂 OTA、root 迁移、时间/触屏适配、服务恢复及修复后的重启验收。
 这不代表上面所有生命周期场景都已在 B22 重跑；详细范围见 [升级记录](OTA-B20-TO-B22.md)。
+
+LuCI 管理页面、权限、写入恢复和整机重启另有[验证记录](../luci-admin/VALIDATION.md)。
+新首次安装包装器尚未在另一台干净 B22 上完成生命周期验证；构建检查不会替代设备验收。

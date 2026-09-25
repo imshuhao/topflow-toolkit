@@ -90,6 +90,7 @@
 | [`web-full-menu`](web-full-menu/) | 从目标设备当前文件生成完整隐藏菜单，保持登录与后端权限边界 | 公开安装器部署及重启实机验证 |
 | [`zwrt-datad-tools`](zwrt-datad-tools/) | 检查、更新、健康验证并回滚触屏所依赖的上游数据服务 | v0.9.21 实机验证 |
 | [`vendor-control`](vendor-control/) | 停用原厂 MQTT 并关闭三路二次认证，检查配置和实际拦截状态 | B22 实机验证 |
+| [`luci-admin`](luci-admin/) | 独立 HTTP LuCI：系统、内存/存储、三路联网、无线、MultiWAN、服务及 Mihomo 管理 | B22 功能及重启验证；新首次安装包装器尚未完成干净设备生命周期 |
 
 各组件可以分别阅读和部署。触屏网络页面依赖本机 `zwrt-datad /state`，Mihomo 触屏页面依赖 `mihomo-manager`；完整菜单应安装在 Manager 之后。
 
@@ -119,7 +120,8 @@
 3. [部署 Mihomo 透明网关](mihomo-netns/README.md)；
 4. [安装设备 Web 管理页](mihomo-manager/README.md)；
 5. 按需安装[完整 WebUI 菜单](web-full-menu/README.md)；
-6. [编译和安装触屏控制中心](touchscreen-control-center/README.md)。
+6. [编译和安装触屏控制中心](touchscreen-control-center/README.md)；
+7. 按需构建 [LuCI 管理界面](luci-admin/README.md)，已有安装可保留密码升级。
 
 [`timekeeper`](timekeeper/) 与 [`mwan3-tuning`](mwan3-tuning/) 是独立增强项。前者解决开机
 时间可信度，后者只影响普通 `MULTIWAN`；先理解[网络架构](docs/NETWORK-ARCHITECTURE.md)
@@ -138,7 +140,7 @@ make check
 ```
 
 该命令检查 POSIX Shell/Bash/Node 语法、ShellCheck、WebUI 补丁器单元测试、Timekeeper
-helper 严格宿主编译，以及触屏注入库的严格宿主编译。面向设备的正式产物仍应使用
+helper 严格宿主编译、触屏注入库的严格宿主编译，以及 LuCI 打包和主机管理工具测试。面向设备的正式产物仍应使用
 AArch64 musl 环境构建。
 
 2026-09-25 已通过原厂本地 OTA 从 B20 升至 B22，并通过 uci-defaults 迁移保留 root。

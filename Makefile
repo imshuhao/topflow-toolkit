@@ -4,7 +4,7 @@ TOUCH_DIR := touchscreen-control-center
 TIMEKEEPER_DIR := timekeeper
 BUILD_DIR := build
 POSIX_DIRS := mihomo-manager mihomo-netns touchscreen-control-center \
-	timekeeper mwan3-tuning web-full-menu vendor-control tests firmware
+	timekeeper mwan3-tuning web-full-menu vendor-control tests firmware luci-admin
 SHELLCHECK_DIRS := $(POSIX_DIRS) zwrt-datad-tools
 UNAME_S := $(shell uname -s)
 TOUCH_LIBS := -pthread
@@ -18,7 +18,7 @@ endif
 
 .PHONY: check shell-check shellcheck node-check boot-hook-check timekeeper-check touchui-check clean
 
-check: shell-check shellcheck node-check boot-hook-check timekeeper-check touchui-check firmware-check
+check: shell-check shellcheck node-check boot-hook-check timekeeper-check touchui-check firmware-check luci-check
 
 shell-check:
 	@find $(POSIX_DIRS) -type f \
@@ -65,6 +65,12 @@ touchui-check:
 
 clean:
 	@find $(BUILD_DIR) -type f -delete 2>/dev/null || true
+
+.PHONY: luci-check
+luci-check:
+	python3 -m py_compile luci-admin/build.py luci-admin/manage.py luci-admin/change-password.py
+	python3 -m unittest discover -s luci-admin/tests -v
+	@for source in luci-admin/*.js luci-admin/views/*.js; do node --check "$$source"; done
 
 .PHONY: firmware-check
 firmware-check:
