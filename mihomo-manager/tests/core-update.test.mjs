@@ -14,7 +14,7 @@ const updated = (overrides = {}) => status({
   version: "Mihomo Meta v1.19.31 linux arm64 with go1.26.8 build", pid: "200", ...overrides,
 });
 
-function page(initial = status()) {
+function page(initial = status(), finishCheck = true) {
   const elements = new Map();
   const pending = [];
   const requests = [];
@@ -44,11 +44,14 @@ function page(initial = status()) {
       method: JSON.parse(options.data)[0].method, options,
       done(fn) { this.success = fn; return this; },
       fail(fn) { this.failure = fn; return this; },
-      reply(data) { this.success([{ result: [0, data] }]); },
-      disconnect(code = 0) { this.failure({ status: code }); },
+      reply(data) { this.settled = true; this.success([{ result: [0, data] }]); },
+      disconnect(code = 0, textStatus = "error") { this.settled = true; this.failure({ status: code }, textStatus); },
     };
     requests.push(request);
     pending.push(request);
+    if (options.timeout) timers.push({ at: now + options.timeout, fn() {
+      if (!request.settled) request.disconnect(0, "timeout");
+    } });
     return request;
   };
   vm.runInNewContext(source, {
@@ -76,7 +79,7 @@ function page(initial = status()) {
   module.init();
   take("status").reply(initial);
   tick(700);
-  take("core_update_check").reply({ ok: true, latest_version: "v1.19.31", update_available: true });
+  if (finishCheck) take("core_update_check").reply({ ok: true, latest_version: "v1.19.31", update_available: true });
   return {
     $, take, tick, pending, requests, poll: () => interval(),
     start() { $("#mm-core-update").events.click(); return take("core_update_apply"); },
@@ -198,4 +201,41 @@ test("a later successful status poll clears an earlier connection error", () => 
   p.take("status").reply(status());
   assert.equal(p.$("#mm-message").value, "");
   assert.equal(p.$("#mm-message").classes.has("error"), false);
+});
+
+test("the automatic version check times out and can be retried", () => {
+  const p = page(status(), false);
+  assert.equal(p.$("#mm-latest-version").value, "检查中...");
+  assert.equal(p.$("#mm-core-check").props.disabled, true);
+  assert.equal(p.take("core_update_check").options.timeout, 25000);
+  p.tick(25000);
+  assert.equal(p.$("#mm-latest-version").value, "检查超时");
+  assert.equal(p.$("#mm-core-check").props.disabled, false);
+  p.$("#mm-core-check").events.click();
+  p.take("core_update_check").reply({ ok: true, latest_version: "v1.19.31", update_available: true });
+  assert.equal(p.locked(), false);
+  assert.equal(p.$("#mm-latest-version").value, "v1.19.31");
+  assert.equal(p.$("#mm-core-update").props.disabled, false);
+});
+
+test("a manual version check releases the controls on timeout", () => {
+  const p = page();
+  p.$("#mm-core-check").events.click();
+  p.take("core_update_check");
+  assert.equal(p.locked(), true);
+  assert.equal(p.message(), "检查中...");
+  p.tick(25000);
+  assert.equal(p.locked(), false);
+  assert.equal(p.error(), true);
+  assert.equal(p.message(), "检查超时，请重试");
+  assert.equal(p.$("#mm-core-check").props.disabled, false);
+  assert.equal(p.$("#mm-core-update").props.disabled, true);
+});
+
+test("an automatic check failure reenables checking and clears a stale update button", () => {
+  const p = page(status(), false);
+  p.take("core_update_check").reply({ ok: false, message: "另一个管理操作正在执行，请稍后重试" });
+  assert.equal(p.$("#mm-latest-version").value, "检查失败");
+  assert.equal(p.$("#mm-core-check").props.disabled, false);
+  assert.equal(p.$("#mm-core-update").props.disabled, true);
 });

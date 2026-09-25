@@ -27,10 +27,11 @@ define(["jquery", "service_helper"], function ($, serviceHelper) {
                 return;
             }
             done(null, entry.result[1] || {});
-        }).fail(function (xhr) {
+        }).fail(function (xhr, textStatus) {
             var rejected = xhr && (xhr.status === 401 || xhr.status === 403);
             var error = new Error(rejected ? "设备拒绝了此操作，请重新登录后再试" : "无法连接设备管理接口");
             error.connectionLost = !rejected;
+            error.timedOut = textStatus === "timeout";
             done(error);
         });
     }
@@ -57,6 +58,7 @@ define(["jquery", "service_helper"], function ($, serviceHelper) {
         if (busy) return;
         $("#mm-open-panel").prop("disabled", !state || !state.controller_listening);
         $("#mm-core-update").prop("disabled", !coreUpdateAvailable);
+        $("#mm-core-check").prop("disabled", coreChecking);
         $("#mm-toggle-service").prop("disabled", !state);
         $("#mm-restart").prop("disabled", !state || !state.service_enabled || !state.service_running);
         $("#mm-toggle-dhcp").prop("disabled", !state || !state.service_running || !state.transparent_enabled);
@@ -268,19 +270,23 @@ define(["jquery", "service_helper"], function ($, serviceHelper) {
     function checkCoreUpdate(silent) {
         if (busy || coreChecking) return;
         coreChecking = true;
+        $("#mm-core-check").prop("disabled", true);
         if (!silent) {
             setBusy(true);
-            setLocalMessage("#mm-core-message", "正在检查官方版本……", false);
+            setLocalMessage("#mm-core-message", "检查中...", false);
         }
-        $("#mm-latest-version").text("检查中……");
+        $("#mm-latest-version").text("检查中...");
         rpc("core_update_check", {}, function (error, data) {
             coreChecking = false;
             if (error || !data.ok) {
                 coreUpdateAvailable = false;
-                $("#mm-latest-version").text("检查失败");
+                $("#mm-latest-version").text(error && error.timedOut ? "检查超时" : "检查失败");
                 if (!silent) {
                     setBusy(false);
-                    setLocalMessage("#mm-core-message", error ? error.message : (data.message || "检查更新失败"), true);
+                    setLocalMessage("#mm-core-message", error && error.timedOut ? "检查超时，请重试" :
+                        (error ? error.message : (data.message || "检查更新失败")), true);
+                } else {
+                    updateConditionalButtons();
                 }
                 return;
             }
@@ -292,7 +298,7 @@ define(["jquery", "service_helper"], function ($, serviceHelper) {
             } else {
                 updateConditionalButtons();
             }
-        });
+        }, 25000);
     }
 
     function confirmCoreUpdate(latest, previousState, confirmedMessage) {

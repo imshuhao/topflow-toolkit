@@ -74,20 +74,46 @@ lan_ipv6_disabled() {
 }
 
 acquire_lock() {
-    attempts=0
-    while ! mkdir "$LOCK_DIR" 2>/dev/null; do
-        attempts=$((attempts + 1))
-        [ "$attempts" -lt 30 ] || return 1
-        sleep 1
-    done
-    trap cleanup_runtime EXIT INT TERM
+    # Serialize stale-owner recovery, but never inherit the guard into services.
+    lock_acquired=0
+    exec 9>"$LOCK_DIR.guard" || return 1
+    if flock -n 9; then
+        if [ -d "$LOCK_DIR" ]; then
+            lock_owner="$(cat "$LOCK_DIR/pid" 2>/dev/null)"
+            case "$lock_owner" in
+                ''|*[!0-9]*) ;; # An ownerless legacy lock needs manual inspection.
+                *)
+                    if ! kill -0 "$lock_owner" 2>/dev/null; then
+                        rm -f "$LOCK_DIR/pid"
+                        rmdir "$LOCK_DIR" 2>/dev/null || true
+                    fi
+                    ;;
+            esac
+        fi
+        if mkdir "$LOCK_DIR" 2>/dev/null; then
+            if printf '%s\n' "$$" >"$LOCK_DIR/pid"; then
+                lock_acquired=1
+            else
+                rmdir "$LOCK_DIR" 2>/dev/null || true
+            fi
+        fi
+        flock -u 9
+    fi
+    exec 9>&-
+    [ "$lock_acquired" -eq 1 ] || return 1
+    trap cleanup_runtime EXIT
+    trap 'exit 130' INT
+    trap 'exit 143' TERM
 }
 
 cleanup_runtime() {
     if [ -n "$TEMP_FILES" ]; then
         rm -f $TEMP_FILES
     fi
-    rmdir "$LOCK_DIR" 2>/dev/null || true
+    if [ "$(cat "$LOCK_DIR/pid" 2>/dev/null)" = "$$" ]; then
+        rm -f "$LOCK_DIR/pid"
+        rmdir "$LOCK_DIR" 2>/dev/null || true
+    fi
 }
 
 result() {
@@ -292,7 +318,8 @@ compare_versions() {
 
 fetch_latest_release() {
     release_file="$1"
-    if ! curl -fsSL --connect-timeout 15 --max-time 60 \
+    # Finish before rpcd's 30-second execution limit.
+    if ! curl -fsSL --connect-timeout 5 --max-time 20 \
         -A MU5252-Mihomo-Manager -o "$release_file" "$RELEASE_API" >>"$ACTION_LOG" 2>&1; then
         return 1
     fi
