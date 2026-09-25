@@ -1,5 +1,5 @@
 #!/bin/sh
-# B20 does not provide the standard /etc/init.d/rcS. Make NITZ's actual
+# B22 does not provide the standard /etc/init.d/rcS. Make NITZ's actual
 # service entry point depend on clock preparation, independent of rc.d order.
 set -eu
 NWINFO_INIT="${NWINFO_INIT:-/etc/init.d/zte_topsw_nwinfo}"

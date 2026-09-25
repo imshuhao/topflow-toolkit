@@ -4,14 +4,14 @@
 偏移。下次开机时，原厂 time_daemon 可以在联网前恢复合理的系统时间，避免 RTC
 停在 1970 年时 TLS 服务和 Mihomo 无法启动。
 
-它不修改物理 RTC。对已审核的 B20 NTP、NITZ 程序应用 UTC 兼容补丁，
+它不修改物理 RTC。对已审核的 B22 NTP、NITZ 程序应用 UTC 兼容补丁，
 保留原厂网络授时协议。procd watcher 每 30 秒检查实际成功写入系统时钟的事件，
 只保存本次开机 120 秒以内的 NITZ/SNTP 事件，并用单调时钟核对系统时间未被再次改写。
 旧的同步标志不能触发保存；持续离线不会超时退出，同一事件不会因 watcher 重启而重复保存。
 
 ## UTC 校时与本地显示
 
-B20 原厂 ntpclient 会在 NTP UTC 秒数上叠加时区和夏令时，再写系统时钟。仅安装
+B22 原厂 ntpclient 会在 NTP UTC 秒数上叠加时区和夏令时，再写系统时钟。仅安装
 UTC+8 TZif 会让联网后的本地显示重复加 8 小时，并把错误 Unix 时间保存到 base 12。
 
 安装器通过 ADB 私下读取设备自己的 ntpclient，先核对完整 SHA-256，再生成兼容副本。
@@ -24,7 +24,7 @@ UTC+8 TZif 会让联网后的本地显示重复加 8 小时，并把错误 Unix 
 新的成功结果才能保存偏移。已有客户端仍映射未修复程序时禁止保存。
 
 组件将原厂保存的固定偏移转换为
-POSIX TZ（UTC+8 为 `CST-8`），同步到系统 UCI 和 `/tmp/TZ`。实机还确认 B20 的
+POSIX TZ（UTC+8 为 `CST-8`），同步到系统 UCI 和 `/tmp/TZ`。实机还确认 B22 的
 libc 不使用 `/etc/TZ` 文本，因此生成固定偏移 TZif v2 文件
 `/data/timekeeper/localtime`，让 `/etc/localtime` 持久指向它，供进程从启动时读取。
 时区显示本身不调整 Unix 时间；真实 NTP 同步负责把系统时钟恢复为 UTC。升级后
@@ -38,11 +38,11 @@ libc 不使用 `/etc/TZ` 文本，因此生成固定偏移 TZif v2 文件
 
 ## NITZ 运营商授时
 
-B20 的 `zte_topsw_nwinfo` 另有运营商授时路径，会把 QMI UTC 日历转换为 Unix 秒后，
+B22 的 `zte_topsw_nwinfo` 另有运营商授时路径，会把 QMI UTC 日历转换为 Unix 秒后，
 再加上带符号的时区值 × 900 秒。此设备的时区值 32 导致 Unix 时间再次快 8 小时，
 所以只修复 ntpclient 不足以防止 NITZ 切换后的回退。
 
-`patch-nwinfo.py` 对已审核的完整固件哈希，将 `0x31a68` 的时区加法替换为普通寄存器
+`patch-nwinfo.py` 对已审核的完整固件哈希，将 `0x31bb0` 的时区加法替换为普通寄存器
 复制；UTC 日历转换、有效性检查、时区元数据、成功标志和通知不变。安装器私下读取
 设备原程序，生成 `/data/timekeeper/nwinfo.utc` 并 bind mount；不分发厂商二进制。
 `zte_topsw_nwinfo` 的实际启动入口增加 `prepare-nitz` 前置步骤。升级时仅重启仍映射
@@ -67,10 +67,10 @@ base 12（应用侧保存的偏移）。这是一项来源选择策略；没有�
 
 ## 兼容性
 
-当前只验证过：
+当前安装器默认且仅接受以下 B22 二进制；历史 B20 记录见后文：
 
 - MU5252_HW1.0；
-- BD_ENCNMU5252V1.0.0B20；
+- BD_ENCNMU5252V1.0.0B22；
 - /usr/lib/libtime_genoff.so.1 和应用基准 12；
 - /etc/init.d/zte_ubus_bsp_rtc.init。
 
@@ -118,6 +118,8 @@ RTC 服务，并在退出时恢复；读回验证成功后标记该事件已保�
     python3 timekeeper/test_timekeeper.py
     make check
 
+### 历史 B20 实机记录
+
 2026-09-13 在 B20 上离线重启后，系统与原厂 `get_systime` 均返回 UTC+8，原厂
 RTC 服务和 watcher 正常，未同步期间可信偏移的校验值保持不变。隔离测试覆盖晚于
 10 分钟才联网、再次同步、服务重启、时区正负偏移及非整小时偏移、TZif 解析至
@@ -156,3 +158,9 @@ NITZ 写钟事件，因此本次 NITZ 事件到持久化的全链路仅通过隔
 
 恢复原厂启动优先级后，已核对 time_daemon 文件和运行进程均为原厂完整哈希，
 服务入口无组件前置步骤，RTC 服务正常；保留 NTP/NITZ UTC 修复和事件保存。
+
+### 当前 B22 验证
+
+2026-09-25 在 B22 完成安装及重启验证：新 SNTP 写钟事件成功经 base 12 保存，
+UTC 与电脑相差不到 1 秒；B22 NITZ 的补丁和观察器地址通过静态核对与指令模拟，
+本次没有重做全部运营商 NITZ/离线场景。完整记录见 [升级记录](../docs/OTA-B20-TO-B22.md)。

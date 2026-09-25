@@ -30,7 +30,7 @@ static void record_write(void *caller, int calendar_write)
     size_t length = strlen(exe);
     if (length > 10 && !strcmp(exe + length - 10, " (deleted)")) exe[length - 10] = '\0';
     offset = (uintptr_t)caller - (uintptr_t)info.dli_fbase;
-    if (!calendar_write && !strcmp(exe, "/usr/bin/zte_topsw_nwinfo") && offset == 0x31b64)
+    if (!calendar_write && !strcmp(exe, "/usr/bin/zte_topsw_nwinfo") && offset == 0x31cac)
         source = "NITZ";
     else if (!calendar_write && !strcmp(exe, "/usr/bin/ntpclient") && offset == 0x4eb4)
         source = "SNTP";

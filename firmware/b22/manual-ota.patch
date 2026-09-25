@@ -1,0 +1,11 @@
+--- a/zte_topsw_daemon.conf
++++ b/zte_topsw_daemon.conf
+@@ -11,7 +11,7 @@
+ sync    ALL        zte_topsw_key
+ sync    ALL        zte_topsw_led
+ sync    ALL        zte_topsw_tr098db
+-sync    ALL        zte_dm
++# zte_dm is intentionally disabled; do not block device startup on it.
+ sync    ALL        zte_topsw_fota_result
+ sync    ALL        zte_topsw_devui
+ sync    ALL        zte_topsw_wlan

@@ -23,3 +23,6 @@ providers/
 *.tar.gz
 *.pcap
 *.db
+
+__pycache__/
+*.pyc

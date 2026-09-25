@@ -6,7 +6,7 @@ HERE="$(CDPATH='' cd -- "$(dirname -- "$0")" && pwd)"
 ADB_BIN="${ADB_BIN:-adb}"
 DEVICE_DIR=/data/touchscreen-control-center
 INIT_FILE=/etc/init.d/touchscreen-control-center
-EXPECTED_DEVUI_SHA256=a5d40b1c65acd5fb74f207d4d0a37b879a36073dcff9b1a33fb2a3b08d7a66a5
+EXPECTED_DEVUI_SHA256=781e3c6ffa2a9db4d61a3cf1bb38461131dc3faed07499a2c9360bc582040dd2
 
 if [ ! -f "$HERE/touchui-hook.so" ]; then
     "$HERE/build.sh"

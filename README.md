@@ -9,7 +9,7 @@
 <p align="center">
   <a href="https://github.com/imshuhao/topflow-toolkit/actions/workflows/ci.yml"><img src="https://img.shields.io/github/actions/workflow/status/imshuhao/topflow-toolkit/ci.yml?branch=main&amp;style=flat-square&amp;label=CI&amp;labelColor=0b0f0d&amp;color=238636" alt="CI"></a>
   <a href="https://github.com/imshuhao/topflow-toolkit/releases"><img src="https://img.shields.io/github/v/release/imshuhao/topflow-toolkit?style=flat-square&amp;labelColor=0b0f0d&amp;color=238636" alt="Latest release"></a>
-  <img src="https://img.shields.io/badge/target-TopFlow%20B20-238636?style=flat-square&amp;labelColor=0b0f0d" alt="Target: ZTE TopFlow B20">
+  <img src="https://img.shields.io/badge/target-TopFlow%20B22-238636?style=flat-square&amp;labelColor=0b0f0d" alt="Target: ZTE TopFlow B22">
   <img src="https://img.shields.io/badge/arch-AArch64-238636?style=flat-square&amp;labelColor=0b0f0d" alt="Architecture: AArch64">
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-238636?style=flat-square&amp;labelColor=0b0f0d" alt="MIT License"></a>
 </p>
@@ -102,13 +102,13 @@
 
 ## 开始使用
 
-当前仅验证过以下目标：
+当前默认面向 B22，已验证环境如下；B20 代码保留在 Git 历史：
 
 | 项目 | 已验证环境 |
 | --- | --- |
 | 商品名 | ZTE TopFlow |
 | 硬件标识 | MU5252 / `MU5252_HW1.0` |
-| 固件 | `BD_ENCNMU5252V1.0.0B20` |
+| 固件 | `BD_ENCNMU5252V1.0.0B22` |
 | 架构 | AArch64 / musl |
 
 核心界面的建议部署顺序：
@@ -140,12 +140,11 @@ make check
 helper 严格宿主编译，以及触屏注入库的严格宿主编译。面向设备的正式产物仍应使用
 AArch64 musl 环境构建。
 
-2026-09-24 已将现有 B20 设备的自定义组件统一到本仓库源码与 AArch64 musl 构建，
-31 个受管脚本/程序逐文件校验通过。重启后验证了三路蜂窝地址/DNS、设备状态、触屏、
-Mihomo RPC、完整菜单、mwan3 wrapper 以及 SNTP 新授时事件持久化。Wi-Fi、LAN、DHCP
-与代理配置保持不变，原厂 base 1 优先、缺失才用 base 12 的恢复逻辑保持不变。
-尚未在另一台干净设备上重跑所有组件的安装—重启—卸载流程，因此首次部署仍应按
-实验性改机处理。
+2026-09-25 已通过原厂本地 OTA 从 B20 升至 B22，并通过 uci-defaults 迁移保留 root。
+时间、触屏和服务已适配，修复停用 OTA 服务后遗漏的开机等待项；最终重新启动后，
+三网 IPv4/IPv6、Wi-Fi、Mihomo、数据服务、触屏及新 SNTP 事件保存均通过验证。
+完整步骤、变更、故障原因和未验证范围见 [B20 → B22 升级记录](docs/OTA-B20-TO-B22.md)。
+未在另一台干净设备上重跑全部安装—重启—卸载流程，仍需遵守兼容性边界。
 
 <details>
 <summary><strong>仓库不包含什么</strong></summary>

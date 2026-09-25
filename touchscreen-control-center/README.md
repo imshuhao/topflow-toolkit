@@ -21,11 +21,11 @@
 
 ## 兼容性
 
-当前只支持 root README 所列 B20 固件。原厂 UI 是固定地址、非 PIE 程序；导航按钮引用该进程中已加载的对象，安装器因此会严格核对：
+当前只支持 root README 所列 B22 固件。原厂 UI 是固定地址、非 PIE 程序；导航按钮引用该进程中已加载的对象，安装器因此会严格核对：
 
 ```text
 zte_topsw_devui SHA-256:
-a5d40b1c65acd5fb74f207d4d0a37b879a36073dcff9b1a33fb2a3b08d7a66a5
+781e3c6ffa2a9db4d61a3cf1bb38461131dc3faed07499a2c9360bc582040dd2
 ```
 
 哈希不匹配时不要修改安装器跳过保护。新固件需要重新审计 LVGL ABI、对象地址、生命周期和恢复路径。

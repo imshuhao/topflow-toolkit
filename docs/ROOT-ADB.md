@@ -1,9 +1,13 @@
 # Root ADB 边界
 
-本项目需要 USB root ADB，但不把“开启 root”混进任何组件安装脚本。已验证目标是
-ZTE TopFlow MU5252、`MU5252_HW1.0`、固件 `BD_ENCNMU5252V1.0.0B20`。
+本项目需要 USB root ADB，但不把“开启 root”混进组件安装脚本。当前默认固件为
+`BD_ENCNMU5252V1.0.0B22`，硬件为 ZTE TopFlow MU5252 / `MU5252_HW1.0`。
 
-## 已验证的方法
+B20 → B22 的 uci-defaults 迁移已实机保留 root，并通过重启验证，见
+[完整升级记录](OTA-B20-TO-B22.md)。以下初始 root 流程是在 B20 上验证的；
+B22 配置恢复路径仅做静态兼容分析，尚未以该方法在 B22 重新 root。
+
+## B20 已验证的初始 root 方法
 
 B20 上，登录后台后直接调用 USB debug RPC 会被拒绝。实机可行路径是：
 
@@ -40,6 +44,7 @@ adb shell 'mount | grep "on /bin/adb_shell "'
 
 ## 固件升级
 
-FOTA 可能替换 `rc.local`，从而关闭 root ADB；`/data` 中旧包装器仍可能保留。升级后应
-先从新固件导出一份新备份并重新适配，不能把旧固件的完整备份或旧 `rc.local` 直接灌
+FOTA 可能替换 `rc.local`，从而关闭 root ADB；`/data` 中旧包装器仍可能保留。本次 B20 → B22 可使用已验证的
+[迁移脚本](../firmware/b22/root-migration/)保留启动钩子；没有预先迁移而丢失 root 时，应
+从新固件导出一份新备份并重新适配恢复流程，不能把旧固件的完整备份或旧 `rc.local` 直接灌
 回去。组件恢复层级见 [RECOVERY.md](RECOVERY.md)。

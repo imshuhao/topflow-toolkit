@@ -68,7 +68,7 @@ else
     stock_sha="$(shasum -a 256 "$TEMP_DIR/stock.sh" | awk '{print $1}')"
 fi
 [ "$stock_sha" = "$KNOWN_STOCK_SHA" ] || {
-    echo "原厂脚本摘要不匹配；当前公开补丁只支持已验证的 B20 文件" >&2
+    echo "原厂脚本摘要不匹配；当前公开补丁只支持已验证的 B22 文件（与 B20 同哈希）" >&2
     exit 1
 }
 

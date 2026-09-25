@@ -7,8 +7,9 @@
 挂载，并可能让停止或卸载遗漏自身挂载。请使用 `v0.1.1` 或更新版本；新版通过
 source/target 的 device:inode 判断所有权，并在升级、停止和卸载时清理连续的自身挂载。
 
-本项目只在商品名 ZTE TopFlow、硬件 `MU5252_HW1.0`、固件
-`BD_ENCNMU5252V1.0.0B20` 上验证。MU5252 是内部硬件标识，不是项目名，也不代表其他
+当前主分支默认面向商品名 ZTE TopFlow、硬件 `MU5252_HW1.0`、固件
+`BD_ENCNMU5252V1.0.0B22`。B20 的源码和验证记录保留在 Git 历史，当前时间和触屏安装器会拒绝 B20。
+MU5252 是内部硬件标识，不是项目名，也不代表其他
 同名外观或其他地区固件自动兼容。
 
 ## 固件相关接口
@@ -17,7 +18,7 @@ source/target 的 device:inode 判断所有权，并在升级、停止和卸载�
 | --- | --- |
 | WebUI | `/usr/zte_web/web` 目录、U60Pro 菜单格式、`requireLogin` 路由和 RPC/ACL |
 | 网络 | `br-lan`、`zte_wan`/`zte_mwan*`、`mwan3`、`mmx_mask`、`iptables`、`ebtables`、`ip netns` |
-| 普通模式 | `/sbin/sdx75_set_mwan3.sh` 的已知 B20 SHA-256 与原厂调用路径 |
+| 普通模式 | `/sbin/sdx75_set_mwan3.sh` 的已知 B20/B22 相同 SHA-256 与原厂调用路径 |
 | 聚合模式 | `SMULTIWAN`、厂商 ICG 透明代理、`tun0` 和模式切换服务 |
 | 时间 | `/usr/lib/libtime_genoff.so.1`、基准 12、原厂 RTC/SNTP UBus 对象 |
 | 触屏 | 非 PIE `zte_topsw_devui`、LVGL ABI、进程内函数/素材地址和启动顺序 |
@@ -40,3 +41,8 @@ source/target 的 device:inode 判断所有权，并在升级、停止和卸载�
 
 FOTA 可能替换 `rc.local`，但保留 `/data`。升级后从新固件重新取得基线，不要把旧
 固件整份 `rc.local` 覆盖回来。恢复策略见 [RECOVERY.md](RECOVERY.md)。
+
+## B22 已完成的验证
+
+2026-09-25 完成原厂 OTA、root 迁移、时间/触屏适配、服务恢复及修复后的重启验收。
+这不代表上面所有生命周期场景都已在 B22 重跑；详细范围见 [升级记录](OTA-B20-TO-B22.md)。

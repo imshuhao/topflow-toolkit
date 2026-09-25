@@ -16,13 +16,13 @@ MAX_TRUSTED_EPOCH=4102444800
 RTC_RESTORE=0
 NTP_CLIENT=/usr/bin/ntpclient
 NTP_LAUNCHER=/sbin/zte_ntp_cy.sh
-NTP_ORIGINAL_SHA=f0dada95771df3aec5c2d3573f1168dfe2986e934619b3696d0ea187724bbcff
-NTP_UTC_SHA=459d5d2e186aaeff1834625a14b976a18b5f8a581ce8711822aaeb4c9c80c9e1
+NTP_ORIGINAL_SHA=81807b2d742bd14749fcfb2a198ad7e44246dfa6ee91907f1c7152a0d4f0f4f1
+NTP_UTC_SHA=e994927b2a7ca4fe96b87ce5d89caa1cb8e9af608c2d88908c055da8741da9b8
 UTC_READY=/tmp/timekeeper-utc-ready
 NWINFO=/usr/bin/zte_topsw_nwinfo
 NWINFO_INIT=/etc/init.d/zte_topsw_nwinfo
-NWINFO_ORIGINAL_SHA=45d989f44b9a776bdbe84a2d59d8285e81ada0c18e9ae0c942c50ce99f51e4e6
-NWINFO_UTC_SHA=01b66a930931f2eb63ab693d52e10642a3a4c5d36456a4d438a010571ba7c4d3
+NWINFO_ORIGINAL_SHA=55dbb174dd8549410de9e37ae3e8bbef08abb8816789a83e1fbc24b87b5ea5af
+NWINFO_UTC_SHA=29c3c7145f52b9e16f63b368e7a22587674f137c8725a582a852fa0ef4e8fdd2
 EVENT_HELPER="$BASE/clock-event"
 EVENT_SAVED=/tmp/timekeeper-event-saved
 
@@ -53,7 +53,7 @@ configured_timezone() {
 }
 
 # TZif v2, one fixed local-time type, no transitions/leaps, POSIX footer.
-# B20 musl reads /etc/localtime but does not use the vendor /etc/TZ text.
+# B22 musl reads /etc/localtime but does not use the vendor /etc/TZ text.
 # Layout: https://man7.org/linux/man-pages/man5/tzfile.5.html
 write_timezone_file() (
     tz="$1"
@@ -230,7 +230,7 @@ prepare_nitz() {
     mount -o bind "$BASE/nwinfo.utc" "$NWINFO" || return 1
     rm -f "$SYNC_MARKER"
     ubus call zwrt_sntp ntpclient_sync_rslt '{"sync":false}' >/dev/null 2>&1 || true
-    log_message "activated B20 UTC NITZ compatibility"
+    log_message "activated B22 UTC NITZ compatibility"
 }
 
 restart_nitz_if_stale() {
@@ -291,7 +291,7 @@ prepare_clock() {
         apply_timezone || return 1
         restart_ntp_if_running || return 1
         : >"$UTC_READY"
-        log_message "activated B20 UTC NTP compatibility; waiting for fresh SNTP"
+        log_message "activated B22 UTC NTP compatibility; waiting for fresh SNTP"
     fi
     [ -f "$UTC_READY" ] || {
         # Also recover a partial activation without trusting its old flag.

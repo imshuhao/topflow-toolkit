@@ -187,14 +187,14 @@ static void set_stock_signal_icon(struct signal_icon_component *component,
     component->state = state;
 }
 
-/* Stock B20 header buttons. Assets 025/028 are the released/pressed back
+/* Stock B22 header buttons. Assets 025/028 are the released/pressed back
  * button; assets 131/132 are the released/pressed home button.
  * zte_topsw_devui is a fixed-address non-PIE executable on this firmware;
  * the install preflight and README bind this hook to its verified binary. */
-#define STOCK_BACK_RELEASED ((const void *)(uintptr_t)0x00eefbb8u)
-#define STOCK_BACK_PRESSED  ((const void *)(uintptr_t)0x00eefbe8u)
-#define STOCK_HOME_RELEASED ((const void *)(uintptr_t)0x00ef0258u)
-#define STOCK_HOME_PRESSED  ((const void *)(uintptr_t)0x00ef0268u)
+#define STOCK_BACK_RELEASED ((const void *)(uintptr_t)0x00eefb58u)
+#define STOCK_BACK_PRESSED  ((const void *)(uintptr_t)0x00eefb88u)
+#define STOCK_HOME_RELEASED ((const void *)(uintptr_t)0x00ef01f8u)
+#define STOCK_HOME_PRESSED  ((const void *)(uintptr_t)0x00ef0208u)
 #define LV_IMGBTN_STATE_RELEASED 0
 #define LV_IMGBTN_STATE_PRESSED 1
 

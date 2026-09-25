@@ -4,7 +4,7 @@ TOUCH_DIR := touchscreen-control-center
 TIMEKEEPER_DIR := timekeeper
 BUILD_DIR := build
 POSIX_DIRS := mihomo-manager mihomo-netns touchscreen-control-center \
-	timekeeper mwan3-tuning web-full-menu tests
+	timekeeper mwan3-tuning web-full-menu tests firmware
 SHELLCHECK_DIRS := $(POSIX_DIRS) zwrt-datad-tools
 UNAME_S := $(shell uname -s)
 TOUCH_LIBS := -pthread
@@ -18,7 +18,7 @@ endif
 
 .PHONY: check shell-check shellcheck node-check boot-hook-check timekeeper-check touchui-check clean
 
-check: shell-check shellcheck node-check boot-hook-check timekeeper-check touchui-check
+check: shell-check shellcheck node-check boot-hook-check timekeeper-check touchui-check firmware-check
 
 shell-check:
 	@find $(POSIX_DIRS) -type f \
@@ -65,3 +65,10 @@ touchui-check:
 
 clean:
 	@find $(BUILD_DIR) -type f -delete 2>/dev/null || true
+
+.PHONY: firmware-check
+firmware-check:
+	sh -n firmware/b22/root-migration/90-mu5252-b22-root
+	sh -n firmware/b22/root-migration/adb_shell
+	shellcheck -S warning firmware/b22/root-migration/90-mu5252-b22-root firmware/b22/root-migration/adb_shell
+	python3 -m py_compile firmware/b22/root-migration/prepare.py

@@ -1,0 +1,29 @@
+#!/bin/sh
+# First B22 boot only; OpenWrt keeps this file if migration fails.
+(
+    PATH=/sbin:/bin:/usr/sbin:/usr/bin
+    umask 077
+    [ "$(uci -q get zwrt_common_info.common_config.wa_inner_version)" = 'BD_ENCNMU5252V1.0.0B22' ] || exit 1
+    root_dir=/data/local/root-b22
+    [ -d "$root_dir" ] || exit 1
+    exec >> "$root_dir/migration.log" 2>&1
+    echo 'Starting B22 root startup migration'
+    cd "$root_dir" || exit 1
+    sha256sum -c SHA256SUMS || exit 1
+    current_hash=$(sha256sum /etc/rc.local | awk '{print $1}')
+    if [ "$current_hash" = '21ab5b3c49c4b9b96e6fb69f5e73ea6dcd6ceb840ea5a2bf34d8da5570bc0280' ]; then
+        cp -p /etc/rc.local "$root_dir/rc.local.stock.b22" || exit 1
+        cp "$root_dir/rc.local.b22-root" /etc/rc.local.b22-new || exit 1
+        chmod 755 /etc/rc.local.b22-new || exit 1
+        chown 0:0 /etc/rc.local.b22-new || exit 1
+        sh -n /etc/rc.local.b22-new || exit 1
+        mv /etc/rc.local.b22-new /etc/rc.local || exit 1
+    elif [ "$current_hash" != 'ff99d5f4468c6d18b76d63176b07fca557a0865f76fe27c41922454256d1d350' ]; then
+        echo 'Unexpected rc.local: retaining migration script for review'
+        exit 1
+    fi
+    sync
+    echo 'B22 root hook installed; rc.local will enable root ADB at normal boot stage'
+    touch "$root_dir/migrated"
+    exit 0
+)
