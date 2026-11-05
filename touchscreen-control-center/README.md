@@ -2,7 +2,11 @@
 
 该组件通过 `LD_PRELOAD` 扩展原厂 `zte_topsw_devui` 的 LVGL 界面，不替换原厂程序。
 
-**相对上游原作的本分支变化：** 控制中心里原「Mihomo」入口改为 **Sing-box**（启停 / 数据面 / 流量）；并新增 **「分流」**，可在「自动·质量」与「三卡共池」间切换（质量信号见 [`../singbox/README.md`](../singbox/README.md)，不把 TCP/UDP 硬绑死在单卡）。
+**相对上游原作的本分支变化：**
+
+- 控制中心里原「Mihomo」入口改为 **Sing-box**（启停 / 数据面 / 流量）；
+- 新增 **「分流」**：「自动·质量」与「三卡共池」（见 [`../singbox/README.md`](../singbox/README.md)）；
+- `start.sh` 启动原厂 UI 时注入 **`TZ=CST-8`**（只影响触屏显示北京时间；系统墙钟仍须为真实 UTC，见根 README「UTC 墙钟」与 [`../docs/TIMEZONE-FIX-2026-09-08.md`](../docs/TIMEZONE-FIX-2026-09-08.md)）。
 
 首页增加一个“控制中心”入口：
 

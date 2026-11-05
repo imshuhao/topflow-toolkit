@@ -1,109 +1,121 @@
 # TopFlow Toolkit — `feat/touchui-singbox-wanbal`
 
 > Fork of [`imshuhao/topflow-toolkit`](https://github.com/imshuhao/topflow-toolkit)  
-> Branch focus: **touchscreen Sing-box controls + quality-aware three-card WAN balance**  
-> Upstream README still describes Mihomo / LuCI / netns 等原作能力；**那些模块本分支未改逻辑**，请以上游 `main` 为准。
+> 本分支主讲 **两块自研改动**：① **UTC 墙钟 / UTC+8 显示** ② **Sing-box 触控 + 质量感知三卡分流**  
+> 上游 README 里的 Mihomo netns、LuCI、聚合、完整截图集等——**本分支未改其逻辑**，请看 [上游 main](https://github.com/imshuhao/topflow-toolkit/blob/main/README.md)。
 
 <p align="center">
   <img src="https://img.shields.io/badge/fork-imshuhao%2Ftopflow--toolkit-238636?style=flat-square&labelColor=0b0f0d" alt="Fork of imshuhao/topflow-toolkit">
   <img src="https://img.shields.io/badge/branch-feat%2Ftouchui--singbox--wanbal-238636?style=flat-square&labelColor=0b0f0d" alt="feat/touchui-singbox-wanbal">
-  <img src="https://img.shields.io/badge/target-TopFlow%20MU5252-238636?style=flat-square&labelColor=0b0f0d" alt="Target MU5252">
+  <img src="https://img.shields.io/badge/target-TopFlow%20MU5252%20B20-238636?style=flat-square&labelColor=0b0f0d" alt="Target MU5252 B20">
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-238636?style=flat-square&labelColor=0b0f0d" alt="MIT License"></a>
 </p>
 
-## 本分支改了什么
+## 本分支改了什么（总览）
 
-在原作触屏控制中心（`LD_PRELOAD` 扩展 `zte_topsw_devui`）上，把代理触控从 **Mihomo 换成 Sing-box**，并增加三卡 **质量感知分流**：
-
-| 改动 | 说明 |
+| 主题 | 一句话 |
 | --- | --- |
-| 触屏 **Sing-box** 页 | 替换原「Mihomo」菜单项；启停 / 状态 / 数据面（TUN 或 eBPF `socket_assign`） |
-| 触屏 **分流** 页（新） | 控制中心里新增横条；两档可切，不做「TCP 只 5G / UDP 只 4G」硬绑为唯一模式 |
-| [`singbox/`](singbox/) | 宿主模式 `singbox-wan-balance.sh`：jhash 选卡、质量降权、软偏置、离线测试 |
-| [`singbox-manager/`](singbox-manager/) | WebUI `#singbox_manager` + 触屏调用的固定子命令（含 `wan-mode-*`） |
+| [墙钟与时区](#1-utc-墙钟--utc8-显示) | 系统时钟必须是真实 UTC；北京时间只用 `CST-8` 显示。修掉「UTC+8 写进 epoch」导致代理全挂 |
+| [Sing-box 触控](#2-sing-box-触控页) | 控制中心原 Mihomo 页换成 Sing-box 启停/数据面 |
+| [分流](#3-分流质量感知三卡选卡) | 新增「分流」横条：自动·质量 / 三卡共池；弱网可溢出，不做协议硬绑死 |
 
-**没有改、也不在本分支介绍范围内的原作内容：**  
-`mihomo-netns`、`mihomo-manager`、`luci-admin`、`mwan3-tuning`、`web-full-menu`、`vendor-control`、`timekeeper`、`zwrt-datad-tools` 等——请直接看 [上游 README](https://github.com/imshuhao/topflow-toolkit/blob/main/README.md)。
+**明确未改：** `mihomo-netns`、`mihomo-manager`、`luci-admin`、`mwan3-tuning`、`web-full-menu`、`vendor-control`、`zwrt-datad-tools` 等原作模块——介绍与安装以上游为准。
 
-## 分流功能（本分支重点）
+---
 
-控制中心菜单顺序（本分支）：
+## 1. UTC 墙钟 / UTC+8 显示
 
-```text
-控制中心
-├── 网络仪表          ← 原作（本分支未改其数据源口径）
-├── Sing-box          ← 本分支：替换 Mihomo 页
-├── 分流              ← 本分支新增
-│   ├── 自动·质量
-│   └── 三卡共池
-└── 设备状态          ← 原作能力保留
-```
+### 问题
 
-### 自动·质量（推荐）
+B20 上原厂 `ntpclient` / `zte_topsw_ntp`（以及未打补丁的 NITZ 路径）会把 **「本地 UTC+8」当成 Unix 时间写进系统时钟**。  
+表现：`date -u` 比真实 UTC 快约 8 小时 → TLS/VMess 等集体失败。  
+这和「界面显示北京时间」不是一回事：**显示用 TZ，墙钟必须是 UTC epoch**。
 
-1. **共池**：5G + 双 4G 都在 TCP/UDP 候选里（弱网时可互相溢出）。  
-2. **质量降权**：读 mwan3track 最大 `LATENCY_*` / `LOSS_*`；可选 `/data/local/weaknet/radio.snap` 的 5G `rsrp=`。  
-   - 进弱：延迟 ≥600 ms 或丢包 ≥30%（滞后退出更松）。  
-   - 弱卡权重 ×15%（至少 1）；极差可暂时出池。  
-3. **软偏置**：健康时 TCP 偏 5G、UDP 偏 4G——用权重表达「偏爱」，不用空池表达「禁止」。  
-4. **粘连接**：只影响**新连接**；约 15 s 看门狗重算。
+现场纪要：[`docs/TIMEZONE-FIX-2026-09-08.md`](docs/TIMEZONE-FIX-2026-09-08.md)。
 
-### 三卡共池
+### 做法（分层）
 
-强制 TCP+UDP 同一套三卡池；**仍做质量降权**，但关闭协议软偏置。
+| 层 | 作用 | 落点 |
+| --- | --- | --- |
+| 源头止血 | 对已审核哈希的 ntpclient / nwinfo 做 UTC 兼容补丁（设备上 bind-mount，**不分发原厂二进制**） | [`timekeeper/`](timekeeper/) |
+| 显示 | `apply-timezone` → POSIX `CST-8` + TZif；**只改显示，不改 epoch** | `timekeeper.sh` |
+| 触屏 | 启动 `zte_topsw_devui` 时注入 `TZ=CST-8` | [`touchscreen-control-center/start.sh`](touchscreen-control-center/start.sh) |
+| 安全网 | HTTP Date 校时 + 持续守卫；直连失败可走 `127.0.0.1:7890` 取 Date，打破「钟偏 → 代理挂 → 取不到时间」死锁 | [`timekeeper/fix-time-http.sh`](timekeeper/fix-time-http.sh) |
 
-### CLI
+`fix-time-http.sh` 内部强制 `TZ=UTC` 再解析 HTTP `Date`，避免系统已是 `CST-8` 时 busybox 把 GMT 头再减 8 小时。
+
+### 不要做的事
+
+- 只装 UTC+8 时区文件、不修 ntpclient → 显示再 +8h，错误 epoch 还会进 time base。  
+- 仓库不提交厂商 NTP/NITZ 二进制或订阅/节点信息。
+
+---
+
+## 2. Sing-box 触控页
+
+- 控制中心菜单：**网络仪表 → Sing-box → 分流 → 设备状态**（Sing-box 替换原 Mihomo 项）。  
+- 启停/状态/数据面走 [`singbox-manager/`](singbox-manager/) 固定子命令。  
+- eBPF `socket_assign` 下无 `sbtun0` 为正常（角标「eBPF 模式」）。
+
+详见 [`touchscreen-control-center/README.md`](touchscreen-control-center/README.md)。
+
+---
+
+## 3. 分流：质量感知三卡选卡
+
+宿主 sing-box 出站带 `SO_MARK 0x2024` 后，mwan3 会跳过这些包；[`singbox/singbox-wan-balance.sh`](singbox/singbox-wan-balance.sh) 用 `tf-sbwan` jhash 按权重把**代理出站**分到在线蜂窝卡。
+
+| 预设 | 行为 |
+| --- | --- |
+| **自动·质量** | 三卡共池 + 质量降权（mwan3 `LATENCY_*`/`LOSS_*`，可选 5G `radio.snap` RSRP）+ TCP 偏 5G / UDP 偏 4G **软偏置**；弱网可溢出 |
+| **三卡共池** | 强制共池；仍质量降权；无软偏置 |
+
+粘连接只影响**新连接**；约 15s 重算。示例配置：[`singbox/wan-balance.conf.example`](singbox/wan-balance.conf.example)。
 
 ```sh
 sh /data/sing-box/singbox-wan-balance.sh preset-set auto
-sh /data/sing-box/singbox-wan-balance.sh preset-set shared
-sh /data/sing-box/singbox-wan-balance.sh preset-get   # weights / degraded
-sh singbox/tests/test_wan_balance_render.sh           # 离线
+sh /data/sing-box/singbox-wan-balance.sh preset-get
+sh singbox/tests/test_wan_balance_render.sh
 ```
 
-示例配置：[`singbox/wan-balance.conf.example`](singbox/wan-balance.conf.example)（无订阅、无节点密钥）。
+---
 
-## Sing-box 触控页
+## 本分支新增 / 改动的路径
 
-- 调用 [`singbox-manager/singbox-manager.sh`](singbox-manager/singbox-manager.sh) 固定子命令：`status` / `service-start|stop|restart` 等。  
-- 展示数据面：`capture_ok`、`inbound_mode`（eBPF 下无 `sbtun0` 为正常）。  
-- 「分流」另调 `wan-mode-status` / `wan-mode-set`。
-
-详见 [`touchscreen-control-center/README.md`](touchscreen-control-center/README.md)、[`singbox/README.md`](singbox/README.md)、[`singbox-manager/README.md`](singbox-manager/README.md)。
-
-## 本分支新增 / 改动的组件
-
-| 路径 | 本分支角色 |
+| 路径 | 角色 |
 | --- | --- |
-| [`touchscreen-control-center/`](touchscreen-control-center/) | Sing-box 页 + 分流页；去掉 Mihomo 触控页 |
+| [`docs/TIMEZONE-FIX-2026-09-08.md`](docs/TIMEZONE-FIX-2026-09-08.md) | UTC+8 写钟问题实机纪要 |
+| [`timekeeper/fix-time-http.*`](timekeeper/) | HTTP Date 校时守卫 |
+| [`timekeeper/`](timekeeper/)（README 等） | UTC 补丁 + `CST-8` 显示口径（B20） |
+| [`touchscreen-control-center/`](touchscreen-control-center/) | Sing-box / 分流页；`TZ=CST-8` |
 | [`singbox/`](singbox/) | WAN 均衡脚本 + 示例 + 测试 |
-| [`singbox-manager/`](singbox-manager/) | 管理脚本 / WebUI 挂载 / `wan-mode-*` |
+| [`singbox-manager/`](singbox-manager/) | 管理脚本与 `wan-mode-*` |
 
-## 脱敏与不收录
+## 脱敏
 
-- 只提交 `.example` 与公开脚本；**无**订阅 URL、节点 UUID、个人域名、设备口令。  
-- **不**收录 HANDOVER、抓包取证、`singbox/generated/config.*.json`、真实 `wan-balance.conf`。  
-- 不提交 `touchui-hook.so`（自行交叉编译）。
+- 只留 `.example` 与公开脚本；无订阅、UUID、个人域名、设备口令。  
+- 不分发厂商二进制、`touchui-hook.so`、HANDOVER/抓包取证、generated 生产配置。
 
 ## 建议验证
 
 ```sh
+# 墙钟
+date -u   # 应接近真实 UTC，而不是「本地北京时间的数字」
+# 触屏环境应含 TZ=CST-8（显示北京时间）
+
+# 分流 / 触控
 sh singbox/tests/test_wan_balance_render.sh
-# 设备：编译 touchui-hook.so 后部署
-# 控制中心应见：网络仪表 / Sing-box / 分流 / 设备状态
+# 部署 touchui-hook.so 后菜单：网络仪表 / Sing-box / 分流 / 设备状态
 sh /data/singbox-manager/singbox-manager.sh wan-mode-set auto
-sh /data/sing-box/singbox-wan-balance.sh status
 ```
 
-大流量时 `nft list chain ip tf-sbwan out` 的 4G 桶应上涨，且仅匹配 `mark 0x2024`（代理出站）。
-
-## 与上游的关系
+## 与上游
 
 | | |
 | --- | --- |
-| 上游 | [imshuhao/topflow-toolkit](https://github.com/imshuhao/topflow-toolkit)（MIT，作者 Shuhao Dong） |
+| 上游 | [imshuhao/topflow-toolkit](https://github.com/imshuhao/topflow-toolkit) |
 | 本 fork | [shizongrengkou/topflow-toolkit](https://github.com/shizongrengkou/topflow-toolkit) |
 | PR | [#2](https://github.com/imshuhao/topflow-toolkit/pull/2) |
-| 上游完整介绍 | 请打开上游 `main` 的 README（Mihomo netns、LuCI、聚合、截图集等） |
+| 原作完整介绍 | 上游 `main` README（本分支不重复展开） |
 
 本项目不是 ZTE、sing-box、Mihomo 或任何运营商的官方项目。
