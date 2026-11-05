@@ -72,3 +72,10 @@ __pycache__/
 *.ipk
 sensitive/
 device-captures/
+# Private handover / personal ops docs (not for public fork)
+docs/HANDOVER*.md
+docs/TEST-CONFIG-REVIEW*.md
+AGENTS.md
+
+# Full generated trees (rulesets can be rebuilt)
+singbox/generated/
