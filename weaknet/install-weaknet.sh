@@ -19,19 +19,24 @@ BEGIN='# >>> TopFlow weaknet recorder >>>'
 END='# <<< TopFlow weaknet recorder <<<'
 INTERVAL=${INTERVAL:-30}
 
+kill_all_recorders() {
+	# pidfile alone misses orphans (busybox nohup twin / stale starts)
+	ps | grep weaknet-watch | grep -v grep | while read -r _pid _rest; do
+		kill -9 "$_pid" 2>/dev/null || true
+	done
+	rm -f /tmp/weaknet-watch.pid
+}
+
 start_recorder() {
-	if [ -f /tmp/weaknet-watch.pid ]; then
-		kill "$(cat /tmp/weaknet-watch.pid)" 2>/dev/null || true
-		rm -f /tmp/weaknet-watch.pid
-	fi
+	kill_all_recorders
+	sleep 1
 	( nohup sh "$BASE/weaknet-watch.sh" "$INTERVAL" </dev/null >/dev/null 2>&1 & )
 	sleep 1
 	echo "recorder pid=$(cat /tmp/weaknet-watch.pid 2>/dev/null || echo '?')"
 }
 
 if [ "${1:-}" = "--uninstall" ]; then
-	[ -f /tmp/weaknet-watch.pid ] && kill "$(cat /tmp/weaknet-watch.pid)" 2>/dev/null || true
-	rm -f /tmp/weaknet-watch.pid
+	kill_all_recorders
 	tmp=/tmp/rc.local.weaknet.$$
 	awk -v b="$BEGIN" -v e="$END" '$0==b{skip=1;next} $0==e{skip=0;next} !skip' "$RC_LOCAL" >"$tmp"
 	sh -n "$tmp" && cat "$tmp" >"$RC_LOCAL"

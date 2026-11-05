@@ -121,7 +121,7 @@ USB 排障：[`docs/USB-ADB-DIAG-2026-10-30.md`](docs/USB-ADB-DIAG-2026-10-30.md
 
 ## 7. 弱网黑匣子
 
-[`weaknet/`](weaknet/)：设备自采 JSONL；手机连设备 Wi-Fi → WebSSH → `sh /data/local/weaknet/weaknet-report.sh`。
+[`weaknet/`](weaknet/)：与现行分流同信号（mwan3track lat/loss + 质量档/权重）；手机 WebSSH → `weaknet-report.sh` / `--live`。
 
 ---
 

@@ -19,28 +19,61 @@ static void wanbal_mode_label(const char *preset, char *out, size_t size)
         safe_copy(out, size, "未知");
 }
 
+/* Vendor iface → panel label (zte_mwan4 is 4G#2, not a 4th modem). */
+static void wanbal_pretty_ifaces(const char *in, char *out, size_t size)
+{
+    const char *s;
+    size_t o = 0;
+    out[0] = '\0';
+    if (!in) return;
+    for (s = in; *s && o + 1 < size; ) {
+        if (!strncmp(s, "zte_mwan2", 9)) {
+            if (o + 2 >= size) break;
+            out[o++] = '5'; out[o++] = 'G';
+            s += 9;
+        } else if (!strncmp(s, "zte_mwan3", 9)) {
+            if (o + 4 >= size) break;
+            out[o++] = '4'; out[o++] = 'G'; out[o++] = '#'; out[o++] = '1';
+            s += 9;
+        } else if (!strncmp(s, "zte_mwan4", 9)) {
+            if (o + 4 >= size) break;
+            out[o++] = '4'; out[o++] = 'G'; out[o++] = '#'; out[o++] = '2';
+            s += 9;
+        } else {
+            out[o++] = *s++;
+        }
+    }
+    out[o] = '\0';
+}
+
 static void wanbal_detail_text(const struct wanbal_status *st, char *out, size_t size)
 {
+    char pretty[96];
     if (!st->valid) {
         safe_copy(out, size, "读取中…");
         return;
     }
     if (st->degraded[0]) {
-        snprintf(out, size, "降权:%s", st->degraded);
+        wanbal_pretty_ifaces(st->degraded, pretty, sizeof(pretty));
+        snprintf(out, size, "降权:%s", pretty[0] ? pretty : st->degraded);
         return;
     }
     if (!strcmp(st->preset, "auto")) {
-        if (st->tcp_weights[0])
-            snprintf(out, size, "TCP %s", st->tcp_weights);
-        else
+        if (st->tcp_weights[0]) {
+            wanbal_pretty_ifaces(st->tcp_weights, pretty, sizeof(pretty));
+            snprintf(out, size, "TCP %s", pretty[0] ? pretty : st->tcp_weights);
+        } else {
             safe_copy(out, size, "质量加权·弱网可溢出");
+        }
         return;
     }
     if (!strcmp(st->preset, "shared") || !strcmp(st->mode, "shared")) {
-        if (st->tcp_weights[0])
-            snprintf(out, size, "权重 %s", st->tcp_weights);
-        else
+        if (st->tcp_weights[0]) {
+            wanbal_pretty_ifaces(st->tcp_weights, pretty, sizeof(pretty));
+            snprintf(out, size, "权重 %s", pretty[0] ? pretty : st->tcp_weights);
+        } else {
             safe_copy(out, size, "TCP+UDP 共池：5G+双4G");
+        }
         return;
     }
     if (!strcmp(st->preset, "game")) {

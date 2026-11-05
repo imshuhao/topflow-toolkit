@@ -516,6 +516,16 @@ $_checks"
 
 WANBAL_SH="${SINGBOX_WANBAL:-$BASE/singbox-wan-balance.sh}"
 
+# Vendor iface names → panel labels. Still only THREE cards:
+#   zte_mwan2 = 5G主卡, zte_mwan3 = 4G#1, zte_mwan4 = 4G#2
+# (mwan 序号是原厂接口名，不是「第 N 张卡」。)
+wan_iface_pretty() {
+    printf '%s' "$1" | sed \
+        -e 's/zte_mwan2/5G/g' \
+        -e 's/zte_mwan3/4G#1/g' \
+        -e 's/zte_mwan4/4G#2/g'
+}
+
 cmd_wan_mode_status() {
     if [ ! -x "$WANBAL_SH" ]; then
         json_result 0 "wan-balance 脚本缺失" ""
@@ -535,19 +545,24 @@ cmd_wan_mode_status() {
     [ -n "$_mode" ] || _mode=unknown
     [ -n "$_quality" ] || _quality=0
     [ -n "$_bias" ] || _bias=0
+    # Touch UI shows these strings raw — use 5G/4G#1/4G#2 so "mwan4" is not
+    # read as a phantom 4th modem.
+    _tw_ui=$(wan_iface_pretty "$_tw")
+    _uw_ui=$(wan_iface_pretty "$_uw")
+    _deg_ui=$(wan_iface_pretty "$_deg")
     mgr_log "wan-mode-status preset=$_preset mode=$_mode q=$_quality deg=$_deg"
     json_init
     json_add_boolean ok 1
     json_add_string message "ok"
     json_add_string preset "$_preset"
     json_add_string mode "$_mode"
-    json_add_string tcp_pool "$_tcp"
-    json_add_string udp_pool "$_udp"
+    json_add_string tcp_pool "$(wan_iface_pretty "$_tcp")"
+    json_add_string udp_pool "$(wan_iface_pretty "$_udp")"
     json_add_string quality "$_quality"
     json_add_string bias "$_bias"
-    json_add_string tcp_weights "$_tw"
-    json_add_string udp_weights "$_uw"
-    json_add_string degraded "$_deg"
+    json_add_string tcp_weights "$_tw_ui"
+    json_add_string udp_weights "$_uw_ui"
+    json_add_string degraded "$_deg_ui"
     json_dump
 }
 
