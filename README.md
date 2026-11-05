@@ -6,6 +6,13 @@
   <strong>把一台三路蜂窝随身路由器，改造成可观测、可控制、可回退的边缘网络平台。</strong>
 </p>
 
+> **本分支 `feat/touchui-singbox-wanbal`（相对上游 main）**  
+> 在原作触屏控制中心之上，把 **Mihomo 触控页换成 Sing-box**，并新增 **「分流」页**：  
+> - **自动·质量**：三卡共池 + 质量降权（mwan3 延迟/丢包，辅以 5G RSRP）+ TCP 偏 5G / UDP 偏 4G 软偏置；弱网可溢出，不做协议硬绑死。  
+> - **三卡共池**：强制共池，仍按质量降权，无软偏置。  
+> 配套公开模块：[`singbox/`](singbox/)（`singbox-wan-balance.sh` + 示例配置 + 离线测试）、[`singbox-manager/`](singbox-manager/)（含 `wan-mode-status` / `wan-mode-set`）。  
+> **不包含**订阅、节点 UUID、个人域名或设备私有配置；仓库只留 `.example`。
+
 <p align="center">
   <a href="https://github.com/imshuhao/topflow-toolkit/actions/workflows/ci.yml"><img src="https://img.shields.io/github/actions/workflow/status/imshuhao/topflow-toolkit/ci.yml?branch=main&amp;style=flat-square&amp;label=CI&amp;labelColor=0b0f0d&amp;color=238636" alt="CI"></a>
   <a href="https://github.com/imshuhao/topflow-toolkit/releases"><img src="https://img.shields.io/github/v/release/imshuhao/topflow-toolkit?style=flat-square&amp;labelColor=0b0f0d&amp;color=238636" alt="Latest release"></a>
@@ -44,7 +51,7 @@
   <tr>
     <td width="33%" valign="top">
       <strong>双端原生控制</strong><br><br>
-      Mihomo 管理能力接入厂商 WebUI；同一套状态与控制延伸到设备原生 LVGL 触摸屏。
+      上游将 Mihomo 接入厂商 WebUI；<strong>本分支触屏改为 Sing-box 启停/数据面</strong>，并增加「分流」质量加权选卡。
     </td>
     <td width="33%" valign="top">
       <strong>设备级运维</strong><br><br>
@@ -66,12 +73,12 @@
 <table>
   <tr>
     <td align="center"><img src="docs/screenshots/touchscreen/02-network-overview.png" alt="三卡网络概览" width="250"></td>
-    <td align="center"><img src="docs/screenshots/touchscreen/12-mihomo.png" alt="Mihomo 触屏管理" width="250"></td>
+    <td align="center"><img src="docs/screenshots/touchscreen/12-mihomo.png" alt="代理触屏管理（上游截图为 Mihomo；本分支界面为 Sing-box / 分流）" width="250"></td>
     <td align="center"><img src="docs/screenshots/touchscreen/16-device-cooling-curve.png" alt="设备风扇曲线" width="250"></td>
   </tr>
   <tr>
     <td align="center"><sub>三卡网络仪表</sub></td>
-    <td align="center"><sub>Mihomo 状态与模式</sub></td>
+    <td align="center"><sub>代理触控（本分支：Sing-box + 分流）</sub></td>
     <td align="center"><sub>原厂 / 自定义风扇曲线</sub></td>
   </tr>
 </table>
@@ -82,9 +89,11 @@
 
 | 组件 | 职责 | 状态边界 |
 | --- | --- | --- |
-| [`mihomo-netns`](mihomo-netns/) | 隔离运行 Mihomo，提供 IPv4 透明网关、DHCP 网关/DNS 下发和故障恢复 | 实机运行 |
-| [`mihomo-manager`](mihomo-manager/) | 将状态、模式、配置、核心更新和网络开关接入设备原生 WebUI | 实机运行 |
-| [`touchscreen-control-center`](touchscreen-control-center/) | 通过 `LD_PRELOAD` 扩展原厂 LVGL，管理三基带、Mihomo、系统、散热和 Wi-Fi | 实机运行 |
+| [`mihomo-netns`](mihomo-netns/) | 隔离运行 Mihomo，提供 IPv4 透明网关、DHCP 网关/DNS 下发和故障恢复 | 上游实机运行 |
+| [`mihomo-manager`](mihomo-manager/) | 将状态、模式、配置、核心更新和网络开关接入设备原生 WebUI | 上游实机运行 |
+| [`touchscreen-control-center`](touchscreen-control-center/) | `LD_PRELOAD` 扩展原厂 LVGL：三基带、**Sing-box**、**分流**、系统/散热/Wi-Fi（本分支已替换原 Mihomo 触控页） | 本分支实机验证 |
+| [`singbox/`](singbox/) | 宿主模式三卡 WAN 均衡（`singbox-wan-balance.sh`）：质量加权 + 软偏置预设 | 本分支新增 |
+| [`singbox-manager/`](singbox-manager/) | WebUI `#singbox_manager` + 触屏调用的固定子命令（含 `wan-mode-*`） | 本分支新增 |
 | [`timekeeper`](timekeeper/) | 用 Qualcomm `time_genoff` 在联网前恢复可信时间，避免 1970 年阻断 TLS | 实机验证 |
 | [`mwan3-tuning`](mwan3-tuning/) | 配置普通模式 Mihomo/HTTPS 分流，改善质量探测并按故障线路清理连接 | 公开安装器迁移及重启实机验证 |
 | [`web-full-menu`](web-full-menu/) | 从目标设备当前文件生成完整隐藏菜单，保持登录与后端权限边界 | 公开安装器部署及重启实机验证 |
@@ -92,7 +101,7 @@
 | [`vendor-control`](vendor-control/) | 停用原厂 MQTT 并关闭三路二次认证，检查配置和实际拦截状态 | B22 实机验证 |
 | [`luci-admin`](luci-admin/) | 独立 HTTP LuCI：系统、内存/存储、三路联网、无线、MultiWAN、服务及 Mihomo 管理 | B22 功能及重启验证；新首次安装包装器尚未完成干净设备生命周期 |
 
-各组件可以分别阅读和部署。触屏网络页面依赖本机 `zwrt-datad /state`，Mihomo 触屏页面依赖 `mihomo-manager`；完整菜单应安装在 Manager 之后。
+各组件可以分别阅读和部署。触屏网络页依赖本机 `zwrt-datad /state`；**本分支** Sing-box / 分流触控页依赖 `singbox-manager` 与设备上的 `singbox-wan-balance.sh`。上游 Mihomo 触控路径仍可通过历史提交回看；完整 WebUI 菜单应安装在 Manager 之后。
 
 ## 设计边界
 
