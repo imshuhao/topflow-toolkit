@@ -3,6 +3,7 @@
 static const char *fan_mode_text(const struct device_status *device)
 {
     if (!device) return "读取中";
+    if (fan_custom_curve_is_off(device)) return "常闭";
     if (!strcmp(device->fan_mode, "automatic")) return "原厂自动";
     if (!strcmp(device->fan_mode, "custom")) return "自定义";
     if (!strcmp(device->fan_mode, "always_on")) return "常开";
@@ -12,7 +13,8 @@ static const char *fan_mode_text(const struct device_status *device)
 static void fan_factory_clicked(void *event)
 {
     (void)event;
-    if (!strcmp(ui_network_status.device.fan_mode, "automatic")) return;
+    if (!fan_custom_curve_is_off(&ui_network_status.device) &&
+        !strcmp(ui_network_status.device.fan_mode, "automatic")) return;
     show_confirm(ACTION_FAN_FACTORY,
                  "交还原厂内核温控？风扇将按 44/48/53°C 三档自动调节。");
 }
@@ -20,7 +22,8 @@ static void fan_factory_clicked(void *event)
 static void fan_custom_clicked(void *event)
 {
     (void)event;
-    if (!strcmp(ui_network_status.device.fan_mode, "custom")) return;
+    if (!fan_custom_curve_is_off(&ui_network_status.device) &&
+        !strcmp(ui_network_status.device.fan_mode, "custom")) return;
     show_confirm(ACTION_FAN_CUSTOM, "启用已保存的自定义温控曲线？");
 }
 
@@ -30,6 +33,14 @@ static void fan_always_clicked(void *event)
     if (!strcmp(ui_network_status.device.fan_mode, "always_on")) return;
     show_confirm(ACTION_FAN_ALWAYS,
                  "将风扇持续保持在 50%？80°C 满速保护仍然有效。");
+}
+
+static void fan_off_clicked(void *event)
+{
+    (void)event;
+    if (fan_custom_curve_is_off(&ui_network_status.device)) return;
+    show_confirm(ACTION_FAN_OFF,
+                 "关闭风扇？将写入零转速曲线，温控不再自动拉起。");
 }
 
 static void liquid_auto_clicked(void *event)
@@ -62,10 +73,11 @@ static void open_cooling_curve_clicked(void *event)
 static int create_device_cooling_tab(void)
 {
     lv_obj_t *curve_button;
-    device_tab_content = make_transparent_container(device_page, 0, 132, 320, 284);
+    /* 扩高容器：风扇 2×2（原厂/自定义 + 常开/常闭），液冷仍 1×3 */
+    device_tab_content = make_transparent_container(device_page, 0, 132, 320, 340);
     if (!device_tab_content) return 0;
 
-    make_panel(device_tab_content, 8, 0, 304, 134, COLOR_CARD);
+    make_panel(device_tab_content, 8, 0, 304, 190, COLOR_CARD);
     make_detail_label(device_tab_content, "风扇", 20, 9, 72, 20,
                       ui_font_small, COLOR_TEXT);
     device_fan_status = make_detail_label(device_tab_content, "读取中", 92, 9, 208, 20,
@@ -76,27 +88,30 @@ static int create_device_cooling_tab(void)
     curve_button = make_button(device_tab_content, "曲线设置", 204, 30, 96, 34,
                                open_cooling_curve_clicked, NULL);
     style_segment_button(curve_button);
-    device_fan_buttons[0] = make_button(device_tab_content, "原厂", 20, 78, 84, 42,
+    /* 2×2 均匀网格：按钮 120×40，列/行间距 24/16，左右边距 20 */
+    device_fan_buttons[0] = make_button(device_tab_content, "原厂", 28, 70, 120, 40,
                                         fan_factory_clicked, NULL);
-    device_fan_buttons[1] = make_button(device_tab_content, "自定义", 118, 78, 84, 42,
+    device_fan_buttons[1] = make_button(device_tab_content, "自定义", 172, 70, 120, 40,
                                         fan_custom_clicked, NULL);
-    device_fan_buttons[2] = make_button(device_tab_content, "常开", 216, 78, 84, 42,
+    device_fan_buttons[2] = make_button(device_tab_content, "常开", 28, 126, 120, 40,
                                         fan_always_clicked, NULL);
-    for (int i = 0; i < 3; i++) style_segment_button(device_fan_buttons[i]);
+    device_fan_buttons[3] = make_button(device_tab_content, "常闭", 172, 126, 120, 40,
+                                        fan_off_clicked, NULL);
+    for (int i = 0; i < 4; i++) style_segment_button(device_fan_buttons[i]);
 
-    make_panel(device_tab_content, 8, 142, 304, 142, COLOR_CARD);
-    make_detail_label(device_tab_content, "液冷", 20, 151, 72, 20,
+    make_panel(device_tab_content, 8, 198, 304, 142, COLOR_CARD);
+    make_detail_label(device_tab_content, "液冷", 20, 199, 72, 20,
                       ui_font_small, COLOR_TEXT);
-    device_liquid_status = make_detail_label(device_tab_content, "读取中", 92, 151, 208, 20,
+    device_liquid_status = make_detail_label(device_tab_content, "读取中", 92, 199, 208, 20,
                                              ui_font_small, COLOR_MUTED);
     right_align_label_text(device_liquid_status);
-    device_liquid_detail = make_detail_label(device_tab_content, "--", 20, 180, 280, 19,
+    device_liquid_detail = make_detail_label(device_tab_content, "--", 20, 228, 280, 19,
                                              ui_font_tiny, COLOR_MUTED);
-    device_liquid_buttons[0] = make_button(device_tab_content, "自动", 20, 224, 84, 42,
+    device_liquid_buttons[0] = make_button(device_tab_content, "自动", 20, 272, 84, 42,
                                            liquid_auto_clicked, NULL);
-    device_liquid_buttons[1] = make_button(device_tab_content, "低档", 118, 224, 84, 42,
+    device_liquid_buttons[1] = make_button(device_tab_content, "低档", 118, 272, 84, 42,
                                            liquid_low_clicked, NULL);
-    device_liquid_buttons[2] = make_button(device_tab_content, "高档", 216, 224, 84, 42,
+    device_liquid_buttons[2] = make_button(device_tab_content, "高档", 216, 272, 84, 42,
                                            liquid_high_clicked, NULL);
     for (int i = 0; i < 3; i++) style_segment_button(device_liquid_buttons[i]);
     return 1;
@@ -106,11 +121,19 @@ static void refresh_cooling_overview_ui(void)
 {
     const struct device_status *device = &ui_network_status.device;
     char text[128];
-    if (!device_fan_status) return;
+    int fan_is_off;
+    if (!device_fan_status || !device_fan_detail) return;
+
+    fan_is_off = fan_custom_curve_is_off(device);
 
     if (!device->valid || !device->fan_mode[0]) {
         lv_label_set_text_p(device_fan_status, "读取中");
         lv_label_set_text_p(device_fan_detail, "等待散热状态");
+    } else if (fan_is_off) {
+        lv_label_set_text_p(device_fan_status, "常闭 · 0%");
+        snprintf(text, sizeof(text), "%d°C · PWM %d", device->fan_temperature,
+                 device->fan_pwm);
+        lv_label_set_text_p(device_fan_detail, text);
     } else {
         snprintf(text, sizeof(text), "%s · %d%%", fan_mode_text(device),
                  device->fan_speed_percent);
@@ -120,11 +143,12 @@ static void refresh_cooling_overview_ui(void)
         lv_label_set_text_p(device_fan_detail, text);
     }
     set_device_checked(device_fan_buttons[0],
-                       !strcmp(device->fan_mode, "automatic"));
+                       !fan_is_off && !strcmp(device->fan_mode, "automatic"));
     set_device_checked(device_fan_buttons[1],
-                       !strcmp(device->fan_mode, "custom"));
+                       !fan_is_off && !strcmp(device->fan_mode, "custom"));
     set_device_checked(device_fan_buttons[2],
-                       !strcmp(device->fan_mode, "always_on"));
+                       !fan_is_off && !strcmp(device->fan_mode, "always_on"));
+    set_device_checked(device_fan_buttons[3], fan_is_off);
 
     if (!device->valid || !device->liquid_mode[0]) {
         lv_label_set_text_p(device_liquid_status, "读取中");
@@ -150,9 +174,10 @@ static void refresh_cooling_overview_ui(void)
 
 static void cooling_curve_defaults(void)
 {
-    static const int temperatures[] = {40, 45, 50, 60, 70};
-    static const int pwms[] = {0, 0, 76, 128, 255};
-    cooling_curve_draft_count = 5;
+    /* 8 点低转速平滑曲线：44-50°C 每 1°C 一点，峰值压至 70% */
+    static const int temperatures[] = {40, 44, 45, 46, 47, 48, 50, 70};
+    static const int pwms[] = {0, 0, 13, 20, 28, 36, 51, 179};
+    cooling_curve_draft_count = 8;
     for (int i = 0; i < cooling_curve_draft_count; i++) {
         cooling_curve_draft[i].temperature = temperatures[i];
         cooling_curve_draft[i].hysteresis = 0;
@@ -191,6 +216,8 @@ static int interpolate_custom_pwm(const struct fan_curve_point_status *points,
         int x1 = points[i].temperature;
         int y0 = points[i - 1].pwm;
         int y1 = points[i].pwm;
+        if (x1 <= x0)
+            continue; /* 脏曲线（同温/非单调）防除零 SIGFPE（H3） */
         if (temperature <= x1)
             return y0 + ((temperature - x0) * (y1 - y0) + (x1 - x0) / 2) /
                         (x1 - x0);

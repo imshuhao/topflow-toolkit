@@ -1,0 +1,40 @@
+# sing-box WAN balance presets (TopFlow MU5252 B20)
+#
+# Install:
+#   cp wan-balance.conf.example /data/sing-box/wan-balance.conf
+#   sh /data/sing-box/singbox-wan-balance.sh apply
+#
+# Or switch via manager / touch UI:
+#   sh /data/sing-box/singbox-wan-balance.sh preset-set auto
+#   sh /data/sing-box/singbox-wan-balance.sh preset-set shared
+#
+# PRESET=auto   — quality-weighted three-card pool + soft bias
+#                 (TCP prefers 5G, UDP prefers 4G; weak cards spill).
+# PRESET=shared — force shared pool; quality degrade still on; no soft bias.
+# PRESET=game   — legacy hard bind TCP=5G / UDP=双4G (CLI only).
+#
+# Quality signals: mwan3track LATENCY_*/LOSS_* (primary) + optional
+# /data/local/weaknet/radio.snap rsrp= (5G auxiliary). Enter/exit hysteresis
+# avoids flap at cell edges. Watchdog re-applies every ~15s.
+
+PRESET=auto
+MODE=proto
+QUALITY=1
+BIAS=1
+TCP_POOL=
+UDP_POOL=
+
+# Optional overrides (defaults shown):
+# Q_ENTER_LATENCY=600
+# Q_EXIT_LATENCY=350
+# Q_ENTER_LOSS=30
+# Q_EXIT_LOSS=10
+# Q_DROP_LATENCY=1500
+# Q_DROP_LOSS=70
+# Q_WEAK_SCALE=15
+# Q_RSRP_ENTER=-105
+# Q_RSRP_EXIT=-95
+# BIAS_TCP_5G=150
+# BIAS_TCP_4G=70
+# BIAS_UDP_5G=70
+# BIAS_UDP_4G=130

@@ -12,8 +12,8 @@ static int device_alert_count(void)
     }
     if (device->cpu_temp >= 75 || device->battery_temp >= 45 || thermal_alert)
         alerts++;
-    if (ui_status.valid && ui_status.service_enabled &&
-        !ui_status.service_running && !ui_status.start_pending) alerts++;
+    if (ui_status.valid && !ui_status.service_running && !ui_status.manual_stop)
+        alerts++;
     if (device->traffic_limit_overflow ||
         (device->traffic_limit_enabled && device->traffic_limit_ratio >= 90))
         alerts++;
@@ -173,6 +173,16 @@ static int create_device_page(lv_obj_t *top)
     for (int i = 0; i < 4; i++) style_segment_button(device_tab_buttons[i]);
     device_message_label = make_single_line_label(device_page, "", 14, 420, 292, 22);
     set_text_color(device_message_label, COLOR_MESSAGE);
+    if (!device_tab_buttons[0] || !device_tab_buttons[1] ||
+        !device_tab_buttons[2] || !device_tab_buttons[3]) {
+        trace_ui_create("device-tab-buttons-failed");
+        if (device_page && lv_obj_del_p) lv_obj_del_p(device_page);
+        device_page = NULL;
+        memset(&device_shell, 0, sizeof(device_shell));
+        memset(device_tab_buttons, 0, sizeof(device_tab_buttons));
+        device_alert_dot = device_alert_label = device_message_label = NULL;
+        return 0;
+    }
     show_device_tab(device_tab);
     return 1;
 }
@@ -186,7 +196,7 @@ static const char *diagnostic_result(int ok, const char *ok_text,
 static int create_diagnostics_page(lv_obj_t *top)
 {
     static const char *names[6] = {
-        "数据服务", "蜂窝链路", "地址与 DNS", "三路路径", "Mihomo", "温控保护"
+        "数据服务", "蜂窝链路", "地址与 DNS", "三路路径", "Sing-box", "温控保护"
     };
     lv_obj_t *refresh_button;
     trace_ui_create("diagnostics-begin");
@@ -226,7 +236,7 @@ static void refresh_diagnostics_ui(void)
 {
     const struct device_status *device = &ui_network_status.device;
     int modems_ok = 1, address_ok = 1, paths_ok = 1, thermal_ok = 1;
-    int alerts = device_alert_count();
+    int data_ok, singbox_ok, row_fails = 0, alerts;
     char text[96];
     if (!diagnostics_page) return;
     for (int i = 0; i < NETWORK_MODEM_COUNT; i++) {
@@ -243,23 +253,46 @@ static void refresh_diagnostics_ui(void)
          !device->fan_kernel_zone_enabled) ||
         !device->liquid_thermal_enabled)
         thermal_ok = 0;
-    snprintf(text, sizeof(text), alerts ? "%d 项需要关注" : "全部检查通过", alerts);
-    lv_label_set_text_p(diagnostic_overall_label, text);
+    data_ok = ui_network_status.valid && device->valid && !ui_network_status.stale;
+    singbox_ok = !ui_status.valid || ui_status.service_running;
+    if (!data_ok) row_fails++;
+    if (!modems_ok) row_fails++;
+    if (!address_ok) row_fails++;
+    if (!paths_ok) row_fails++;
+    if (!singbox_ok) row_fails++;
+    if (!thermal_ok) row_fails++;
+    /* 总计必须可解释：未读短信/流量限额没有对应明细行，计入并点名。
+     * 原实现直接套 device_alert_count()，导致“6 行全绿却显示 1 项需要关注”。 */
+    alerts = row_fails;
+    if (device->sms_unread > 0) alerts++;
+    if (device->traffic_limit_overflow ||
+        (device->traffic_limit_enabled && device->traffic_limit_ratio >= 90))
+        alerts++;
+    if (!alerts) {
+        snprintf(text, sizeof(text), "全部检查通过");
+    } else if (device->sms_unread > 0) {
+        snprintf(text, sizeof(text), "%d 项需要关注 · 未读短信 %d 条",
+                 alerts, device->sms_unread);
+    } else if (device->traffic_limit_overflow ||
+               (device->traffic_limit_enabled && device->traffic_limit_ratio >= 90)) {
+        snprintf(text, sizeof(text), "%d 项需要关注 · 流量达限额", alerts);
+    } else {
+        snprintf(text, sizeof(text), "%d 项需要关注", alerts);
+    }
+    set_label_text_if_changed(diagnostic_overall_label, text);
     set_text_color(diagnostic_overall_label, alerts ? COLOR_AMBER : COLOR_GREEN);
-    lv_label_set_text_p(diagnostic_values[0], diagnostic_result(
-        ui_network_status.valid && device->valid && !ui_network_status.stale,
-        "正常 · 每秒更新", "不可用或数据延迟"));
-    lv_label_set_text_p(diagnostic_values[1], diagnostic_result(
+    set_label_text_if_changed(diagnostic_values[0], diagnostic_result(
+        data_ok, "正常 · 每秒更新", "不可用或数据延迟"));
+    set_label_text_if_changed(diagnostic_values[1], diagnostic_result(
         modems_ok, "3/3 在线", "检查离线卡或 SIM"));
-    lv_label_set_text_p(diagnostic_values[2], diagnostic_result(
+    set_label_text_if_changed(diagnostic_values[2], diagnostic_result(
         address_ok, "IPv4 与 DNS 正常", "地址或 DNS 缺失"));
-    lv_label_set_text_p(diagnostic_values[3], diagnostic_result(
+    set_label_text_if_changed(diagnostic_values[3], diagnostic_result(
         paths_ok, "3/3 路径在线", "路径探测异常"));
-    lv_label_set_text_p(diagnostic_values[4], diagnostic_result(
-        !ui_status.valid || !ui_status.service_enabled || ui_status.service_running ||
-        ui_status.start_pending, ui_status.service_running ? "运行正常" :
-        (ui_status.start_pending ? "正在启动" : "未启用"), "服务未运行"));
-    lv_label_set_text_p(diagnostic_values[5], diagnostic_result(
+    set_label_text_if_changed(diagnostic_values[4], diagnostic_result(
+        singbox_ok, ui_status.service_running ? "运行正常" : "未启用",
+        "服务未运行"));
+    set_label_text_if_changed(diagnostic_values[5], diagnostic_result(
         thermal_ok, "温度与保护正常", "高温或温控被关闭"));
 }
 
@@ -276,7 +309,7 @@ static void refresh_device_ui(void)
     int alerts = device_alert_count();
     if (menu_device_alert_label) {
         snprintf(text, sizeof(text), alerts ? "%d项" : "正常", alerts);
-        lv_label_set_text_p(menu_device_alert_label, text);
+        set_label_text_if_changed(menu_device_alert_label, text);
         if (lv_obj_update_layout_p)
             lv_obj_update_layout_p(menu_device_alert_label);
         lv_obj_align_p(menu_device_alert_label, LV_ALIGN_CENTER, 0, 0);
@@ -291,37 +324,37 @@ static void refresh_device_ui(void)
         set_network_dot(device_alert_dot, alerts ? COLOR_AMBER : COLOR_GREEN);
     if (device_alert_label) {
         snprintf(text, sizeof(text), alerts ? "%d 项需要关注" : "设备状态正常", alerts);
-        lv_label_set_text_p(device_alert_label, text);
+        set_label_text_if_changed(device_alert_label, text);
         set_text_color(device_alert_label, alerts ? COLOR_AMBER : COLOR_GREEN);
     }
     pthread_mutex_lock(&shared_lock);
     safe_copy(message, sizeof(message),
               shared_message_page == PAGE_DEVICE ? shared_message : "");
     pthread_mutex_unlock(&shared_lock);
-    if (device_message_label) lv_label_set_text_p(device_message_label, message);
+    if (device_message_label) set_label_text_if_changed(device_message_label, message);
     if (device_system_values[0]) {
         snprintf(text, sizeof(text), "%d%% · %d°C", device->battery_percent,
                  device->battery_temp);
-        lv_label_set_text_p(device_system_values[0], text);
+        set_label_text_if_changed(device_system_values[0], text);
         snprintf(text, sizeof(text), "%s · %.2fV",
                  device->charger_connected ?
                  (device->battery_percent >= 100 ? "已充满" : "充电中") : "电池供电",
                  device->battery_uv / 1000000.0);
-        lv_label_set_text_p(device_system_values[1], text);
+        set_label_text_if_changed(device_system_values[1], text);
         snprintf(text, sizeof(text), "%d%%", device->cpu_usage);
-        lv_label_set_text_p(device_system_values[2], text);
+        set_label_text_if_changed(device_system_values[2], text);
         snprintf(text, sizeof(text), "%d°C", device->cpu_temp);
-        lv_label_set_text_p(device_system_values[3], text);
+        set_label_text_if_changed(device_system_values[3], text);
         format_bytes_compact(device->mem_total - device->mem_avail, a, sizeof(a));
         format_bytes_compact(device->mem_total, b, sizeof(b));
         snprintf(text, sizeof(text), "%s / %s · %d%%", a, b, device->mem_used_pct);
-        lv_label_set_text_p(device_system_values[4], text);
+        set_label_text_if_changed(device_system_values[4], text);
         format_bytes_compact(device->storage_used, a, sizeof(a));
         format_bytes_compact(device->storage_total, b, sizeof(b));
         snprintf(text, sizeof(text), "%s / %s", a, b);
-        lv_label_set_text_p(device_system_values[5], text);
+        set_label_text_if_changed(device_system_values[5], text);
         format_duration_compact((unsigned long long)device->uptime, text, sizeof(text));
-        lv_label_set_text_p(device_system_values[6], text);
+        set_label_text_if_changed(device_system_values[6], text);
     }
     if (device_traffic_values[0].label) {
         unsigned long long values[8] = {
@@ -397,7 +430,8 @@ static void process_device_navigation(void)
     int view = pending_device_view;
     if (!view || !network_parent) return;
     pending_device_view = 0;
-    destroy_mihomo_page();
+    destroy_singbox_page();
+    destroy_wanbal_page();
     destroy_network_identity();
     destroy_network_detail();
     destroy_network_overview();

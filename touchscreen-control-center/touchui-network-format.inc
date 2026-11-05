@@ -5,6 +5,14 @@ static const char *network_module_titles[NETWORK_MODEM_COUNT] = {
 };
 static const char *network_module_ids[NETWORK_MODEM_COUNT] = {"X75", "V3E2", "V3E1"};
 
+/* Clamp display index before indexing network_display_order[]. */
+static int network_backend_index(int display_index)
+{
+    if (display_index < 0 || display_index >= NETWORK_MODEM_COUNT)
+        display_index = 0;
+    return network_display_order[display_index];
+}
+
 static const char *display_operator_name(const char *name)
 {
     if (contains_text_ci(name, "unicom")) return "中国联通";

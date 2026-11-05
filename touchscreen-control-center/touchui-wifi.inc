@@ -145,15 +145,16 @@ static void refresh_wifi_power_ui(void)
     set_device_checked(device_wifi_band_buttons[0], device_wifi_band == 0);
     set_device_checked(device_wifi_band_buttons[1], device_wifi_band == 1);
     band = selected_wifi_power_band();
-    lv_label_set_text_p(device_wifi_header, device_wifi_band ? "5 GHz" : "2.4 GHz");
+    if (lv_label_set_text_p)
+        lv_label_set_text_p(device_wifi_header, device_wifi_band ? "5 GHz" : "2.4 GHz");
     if (!band || !band->valid || !device_wifi_draft_valid[device_wifi_band]) {
-        lv_label_set_text_p(device_wifi_state, "读取中");
+        set_label_text_if_changed(device_wifi_state, "读取中");
         set_centered_wifi_value(device_wifi_percent_value, "--");
         set_centered_wifi_value(device_wifi_limit_value, "--");
         set_device_checked(device_wifi_apply_button, 0);
         return;
     }
-    lv_label_set_text_p(device_wifi_state, band->enabled ? "已开启" : "已关闭");
+    set_label_text_if_changed(device_wifi_state, band->enabled ? "已开启" : "已关闭");
     set_text_color(device_wifi_state, band->enabled ? COLOR_GREEN : COLOR_MUTED);
     snprintf(text, sizeof(text), "%d%%", device_wifi_draft_percent[device_wifi_band]);
     set_centered_wifi_value(device_wifi_percent_value, text);

@@ -15,7 +15,7 @@ static void refresh_network_ui(void)
     update_network_history(&status);
 
     if (network_page) for (int i = 0; i < NETWORK_MODEM_COUNT; i++) {
-        struct modem_status *modem = &status.modems[network_display_order[i]];
+        struct modem_status *modem = &status.modems[network_backend_index(i)];
         char text[96], band[32], rsrp[16], snr[16], down[24], up[24];
         uint32_t dot_color = status.stale ? COLOR_AMBER :
                              (modem->online ? COLOR_GREEN : COLOR_RED);
@@ -31,12 +31,12 @@ static void refresh_network_ui(void)
         if (status.valid && strcmp(rsrp, "--") != 0)
             snprintf(text, sizeof(text), "%s dBm", rsrp);
         else safe_copy(text, sizeof(text), "-- dBm");
-        lv_label_set_text_p(network_traffic_label[i], text);
+        set_label_text_if_changed(network_traffic_label[i], text);
         format_metric_double(modem->snr, snr, sizeof(snr));
         if (status.valid && strcmp(snr, "--") != 0)
             snprintf(text, sizeof(text), "%s dB", snr);
         else safe_copy(text, sizeof(text), "-- dB");
-        lv_label_set_text_p(network_snr_label[i], text);
+        set_label_text_if_changed(network_snr_label[i], text);
         format_rate_compact(modem->rx_rate, down, sizeof(down));
         format_rate_compact(modem->tx_rate, up, sizeof(up));
         set_traffic_value(&network_down[i], status.valid ? down : "--");

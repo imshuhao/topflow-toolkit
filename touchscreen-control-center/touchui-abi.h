@@ -21,6 +21,10 @@
 typedef struct _lv_obj_t lv_obj_t;
 typedef struct _lv_disp_t lv_disp_t;
 typedef uint16_t lv_color_compat_t;
+typedef struct { int32_t x1, y1, x2, y2; } lv_area_compat_t;
+typedef int (*obj_check_type_fn)(const lv_obj_t *obj, const void *class_p);
+typedef lv_obj_t *(*obj_get_parent_fn)(const lv_obj_t *obj);
+typedef void (*obj_get_coords_fn)(const lv_obj_t *obj, lv_area_compat_t *area);
 
 typedef uint32_t (*timer_handler_fn)(void);
 typedef lv_disp_t *(*disp_get_default_fn)(void);
@@ -73,10 +77,8 @@ typedef void (*chart_set_next_value_fn)(lv_obj_t *chart, void *series,
                                         int32_t value);
 typedef void (*chart_refresh_fn)(lv_obj_t *chart);
 
-#define MANAGER "/data/mihomo-manager/mihomo-manager.sh"
-#define MIHOMO_PIDFILE "/data/mihomo/run/mihomo.pid"
-#define TRAFFIC_RX "/sys/class/net/mh-host/statistics/rx_bytes"
-#define TRAFFIC_TX "/sys/class/net/mh-host/statistics/tx_bytes"
+#define SINGBOX_MANAGER "/data/singbox-manager/singbox-manager.sh"
+#define SINGBOX_PIDFILE "/data/sing-box/state/sing-box.pid"
 #define FAST_STATUS_INTERVAL_MS 1000LL
 #define FULL_STATUS_INTERVAL_MS 5000LL
 #define NETWORK_STATUS_INTERVAL_MS 1000LL

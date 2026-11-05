@@ -112,8 +112,28 @@ static int json_output_complete(const char *json)
     return end > start && end[-1] == '}';
 }
 
+static void touchui_mgr_trace(const char *phase, const char *arg1, const char *arg2, int rc)
+{
+    int logfd;
+    char line[256];
+    int n;
+    logfd = open("/tmp/touchui-singbox-manager.log", O_WRONLY | O_CREAT | O_APPEND, 0644);
+    if (logfd < 0) return;
+    if (arg2)
+        n = snprintf(line, sizeof(line), "%ld [touchui] %s %s %s rc=%d\n",
+                     (long)time(NULL), phase, arg1 ? arg1 : "-", arg2, rc);
+    else
+        n = snprintf(line, sizeof(line), "%ld [touchui] %s %s rc=%d\n",
+                     (long)time(NULL), phase, arg1 ? arg1 : "-", rc);
+    if (n > 0) {
+        if (n >= (int)sizeof(line)) n = (int)sizeof(line) - 1;
+        (void)write(logfd, line, (size_t)n);
+    }
+    close(logfd);
+}
+
 /* Execute only the fixed manager path and fixed arguments; no shell is used. */
-static int run_manager(char *output, size_t size, const char *arg1, const char *arg2)
+static int run_singbox_manager(char *output, size_t size, const char *arg1, const char *arg2)
 {
     static char *const clean_env[] = {
         "PATH=/usr/sbin:/usr/bin:/sbin:/bin",
@@ -127,6 +147,7 @@ static int run_manager(char *output, size_t size, const char *arg1, const char *
     ssize_t count;
     if (!size) return -1;
     output[0] = '\0';
+    touchui_mgr_trace("begin", arg1, arg2, 0);
     if (pipe(pipefd) < 0) return -1;
     pid = fork();
     if (pid < 0) { close(pipefd[0]); close(pipefd[1]); return -1; }
@@ -135,14 +156,14 @@ static int run_manager(char *output, size_t size, const char *arg1, const char *
         close(pipefd[0]);
         dup2(pipefd[1], STDOUT_FILENO);
         close(pipefd[1]);
-        logfd = open("/tmp/touchui-mihomo-manager.log", O_WRONLY|O_CREAT|O_APPEND, 0600);
+        logfd = open("/tmp/touchui-singbox-manager.log", O_WRONLY|O_CREAT|O_APPEND, 0644);
         if (logfd >= 0) { dup2(logfd, STDERR_FILENO); close(logfd); }
         if (arg2) {
-            char *const argv[] = {(char *)MANAGER, (char *)arg1, (char *)arg2, NULL};
-            execve(MANAGER, argv, clean_env);
+            char *const argv[] = {(char *)SINGBOX_MANAGER, (char *)arg1, (char *)arg2, NULL};
+            execve(SINGBOX_MANAGER, argv, clean_env);
         } else {
-            char *const argv[] = {(char *)MANAGER, (char *)arg1, NULL};
-            execve(MANAGER, argv, clean_env);
+            char *const argv[] = {(char *)SINGBOX_MANAGER, (char *)arg1, NULL};
+            execve(SINGBOX_MANAGER, argv, clean_env);
         }
         _exit(127);
     }
@@ -161,9 +182,17 @@ static int run_manager(char *output, size_t size, const char *arg1, const char *
         /* The stock UI has its own SIGCHLD handler and can reap our child
          * first. Pipe EOF plus a complete JSON document proves that the
          * command finished producing a usable response. */
-        if (errno == ECHILD && json_output_complete(output)) return 0;
+        if (errno == ECHILD && json_output_complete(output)) {
+            touchui_mgr_trace("done-echild", arg1, arg2, 0);
+            return 0;
+        }
+        touchui_mgr_trace("waitpid-fail", arg1, arg2, -1);
         return -1;
     }
-    if (!WIFEXITED(status)) return -1;
+    if (!WIFEXITED(status)) {
+        touchui_mgr_trace("bad-status", arg1, arg2, -1);
+        return -1;
+    }
+    touchui_mgr_trace("done", arg1, arg2, WEXITSTATUS(status));
     return WEXITSTATUS(status);
 }

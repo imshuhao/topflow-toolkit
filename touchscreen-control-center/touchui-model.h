@@ -5,22 +5,21 @@
 
 enum action_id {
     ACTION_NONE = 0,
-    ACTION_SERVICE_ENABLE,
-    ACTION_SERVICE_DISABLE,
-    ACTION_TRANSPARENT_ON,
-    ACTION_TRANSPARENT_OFF,
-    ACTION_MODE_RULE,
-    ACTION_MODE_GLOBAL,
-    ACTION_MODE_DIRECT,
+    ACTION_SERVICE_START,
+    ACTION_SERVICE_STOP,
+    ACTION_SERVICE_RESTART,
     ACTION_FAN_FACTORY,
     ACTION_FAN_CUSTOM,
     ACTION_FAN_ALWAYS,
+    ACTION_FAN_OFF,
     ACTION_FAN_CURVE_APPLY,
     ACTION_LIQUID_AUTO,
     ACTION_LIQUID_LOW,
     ACTION_LIQUID_HIGH,
     ACTION_WIFI_APPLY,
-    ACTION_STATE_REFRESH
+    ACTION_STATE_REFRESH,
+    ACTION_WAN_MODE_AUTO,
+    ACTION_WAN_MODE_SHARED
 };
 
 enum page_id {
@@ -29,7 +28,8 @@ enum page_id {
     PAGE_NETWORK,
     PAGE_NETWORK_DETAIL,
     PAGE_NETWORK_IDENTITY,
-    PAGE_MIHOMO,
+    PAGE_SINGBOX,
+    PAGE_WANBAL,
     PAGE_DEVICE,
     PAGE_COOLING_CURVE,
     PAGE_DIAGNOSTICS
@@ -57,22 +57,44 @@ struct fan_curve_point_status {
     int speed_percent;
 };
 
-struct mihomo_status {
+struct singbox_status {
     int valid;
     int stale;
-    int service_enabled;
     int service_running;
-    int start_pending;
-    int transparent_enabled;
-    int dhcp_enabled;
-    int controller_listening;
+    int api_ok;
+    int tun_up;
+    int capture_ok;
+    int dhcp_ok;
+    int providers;
+    int watchdog_running;
+    int keeper_running;
+    int manual_stop;
+    int mihomo_running;
     long rss_kb;
     unsigned long long rx_bytes;
     unsigned long long tx_bytes;
     unsigned long long rx_rate;
     unsigned long long tx_rate;
-    char proxy_mode[16];
+    char service_state[20];
     char version[32];
+    char tun_addr[40];
+    char inbound_mode[8];
+    char updated[16];
+};
+
+/* WAN balance preset shown on the 分流 page (auto | shared | custom). */
+struct wanbal_status {
+    int valid;
+    int stale;
+    char preset[16];
+    char mode[16];
+    char tcp_pool[64];
+    char udp_pool[64];
+    char tcp_weights[96];
+    char udp_weights[96];
+    char degraded[64];
+    char quality[4];
+    char bias[4];
     char updated[16];
 };
 
@@ -208,6 +230,17 @@ struct device_status {
     int sms_unread;
     int nfc_enabled;
 };
+
+static inline int fan_custom_curve_is_off(const struct device_status *device)
+{
+    int i;
+    if (!device || strcmp(device->fan_mode, "custom")) return 0;
+    if (device->fan_custom_curve_count < 1) return 1;
+    for (i = 0; i < device->fan_custom_curve_count; i++) {
+        if (device->fan_custom_curve[i].pwm > 0) return 0;
+    }
+    return 1;
+}
 
 struct wifi_power_band_status {
     int valid;

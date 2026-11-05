@@ -1,0 +1,231 @@
+<style>
+    .singbox-manager {
+        --sb-blue: #2f66df;
+        --sb-blue-dark: #1f4fb9;
+        --sb-blue-soft: #eef4ff;
+        --sb-green: #087a55;
+        --sb-red: #c53b3b;
+        --sb-red-soft: #fff0f0;
+        --sb-amber: #a15c00;
+        --sb-text: #182230;
+        --sb-muted: #667085;
+        --sb-border: #e5e9f0;
+        max-width: 1080px;
+        margin: 0 auto;
+        padding: 4px 0 44px;
+        color: var(--sb-text);
+    }
+    .singbox-manager * { box-sizing: border-box; }
+    .singbox-manager .sb-page-header { display: flex; align-items: center; justify-content: space-between; gap: 20px; margin-bottom: 18px; }
+    .singbox-manager .sb-page-header h2 { margin: 0; font-size: 25px; line-height: 1.25; }
+    .singbox-manager .sb-page-subtitle { margin-top: 4px; color: var(--sb-muted); font-size: 13px; }
+    .singbox-manager .sb-header-actions,
+    .singbox-manager .sb-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+    .singbox-manager .sb-button { min-height: 36px; padding: 7px 14px; border: 1px solid #cfd6e2; border-radius: 9px; background: #fff; color: #344054; font-size: 14px; line-height: 20px; cursor: pointer; transition: border-color .15s, background .15s, color .15s; }
+    .singbox-manager .sb-button:hover { border-color: #98a2b3; background: #f8fafc; }
+    .singbox-manager .sb-button-primary { border-color: var(--sb-blue); background: var(--sb-blue); color: #fff; }
+    .singbox-manager .sb-button-primary:hover { border-color: var(--sb-blue-dark); background: var(--sb-blue-dark); }
+    .singbox-manager .sb-button-danger { border-color: #efb3b3; color: var(--sb-red); }
+    .singbox-manager .sb-button-danger:hover { border-color: var(--sb-red); background: var(--sb-red-soft); }
+    .singbox-manager .sb-button[disabled] { opacity: .45; cursor: not-allowed; }
+    .singbox-manager .sb-message { display: none; margin: 0 0 14px; padding: 10px 13px; border: 1px solid #b8d4ff; border-radius: 9px; background: var(--sb-blue-soft); color: #2453aa; }
+    .singbox-manager .sb-message:not(:empty) { display: block; }
+    .singbox-manager .sb-message.error { border-color: #f2b8b8; background: var(--sb-red-soft); color: #a12828; }
+    .singbox-manager .sb-local-message { flex: 0 1 auto; max-width: 48%; overflow: hidden; color: var(--sb-muted); font-size: 12px; line-height: 18px; text-align: right; text-overflow: ellipsis; white-space: nowrap; opacity: 0; transition: opacity .15s; }
+    .singbox-manager .sb-local-message:not(:empty) { opacity: 1; }
+    .singbox-manager .sb-local-message.error { color: var(--sb-red); }
+    .singbox-manager .sb-overview { display: flex; align-items: stretch; justify-content: space-between; gap: 22px; padding: 21px 22px; border: 1px solid #dce5f4; border-radius: 14px; background: linear-gradient(135deg, #fff 0%, #f5f8ff 100%); box-shadow: 0 2px 8px rgba(20, 45, 85, .04); }
+    .singbox-manager .sb-health { display: flex; align-items: center; gap: 13px; min-width: 280px; }
+    .singbox-manager .sb-health-dot { width: 12px; height: 12px; flex: 0 0 12px; border-radius: 50%; background: #98a2b3; box-shadow: 0 0 0 5px rgba(152, 162, 179, .13); }
+    .singbox-manager .sb-health.good .sb-health-dot { background: #19a974; box-shadow: 0 0 0 5px rgba(25, 169, 116, .13); }
+    .singbox-manager .sb-health.warn .sb-health-dot { background: #e59a22; box-shadow: 0 0 0 5px rgba(229, 154, 34, .14); }
+    .singbox-manager .sb-health.off .sb-health-dot { background: #d14b4b; box-shadow: 0 0 0 5px rgba(209, 75, 75, .12); }
+    .singbox-manager .sb-health-title { font-size: 19px; font-weight: 650; line-height: 1.3; }
+    .singbox-manager .sb-health-detail { margin-top: 3px; color: var(--sb-muted); font-size: 13px; }
+    .singbox-manager .sb-overview-metrics { display: grid; grid-template-columns: repeat(3, minmax(110px, 1fr)); min-width: 420px; }
+    .singbox-manager .sb-metric { padding: 2px 18px; border-left: 1px solid #e0e6ef; }
+    .singbox-manager .sb-metric-label { color: var(--sb-muted); font-size: 12px; }
+    .singbox-manager .sb-metric-value { margin-top: 5px; font-size: 15px; font-weight: 600; overflow-wrap: anywhere; }
+    .singbox-manager .sb-main-grid { display: grid; grid-template-columns: minmax(0, 1.05fr) minmax(0, .95fr); gap: 14px; margin-top: 14px; }
+    .singbox-manager .sb-card { border: 1px solid var(--sb-border); border-radius: 13px; background: #fff; box-shadow: 0 1px 3px rgba(16, 24, 40, .025); }
+    .singbox-manager .sb-card-body { padding: 18px; }
+    .singbox-manager .sb-card-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; margin-bottom: 12px; }
+    .singbox-manager .sb-card-title { margin: 0; font-size: 16px; font-weight: 650; }
+    .singbox-manager .sb-card-caption { margin-top: 3px; color: var(--sb-muted); font-size: 12px; }
+    .singbox-manager .sb-runtime-top { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding-bottom: 15px; }
+    .singbox-manager .sb-runtime-state { display: flex; align-items: center; gap: 9px; }
+    .singbox-manager .sb-runtime-state strong { font-size: 17px; }
+    .singbox-manager .sb-runtime-meta { margin-top: 3px; color: var(--sb-muted); font-size: 12px; }
+    .singbox-manager .sb-status-dot { width: 9px; height: 9px; border-radius: 50%; background: #98a2b3; }
+    .singbox-manager .sb-status-dot.good { background: #19a974; }
+    .singbox-manager .sb-status-dot.warn { background: #e59a22; }
+    .singbox-manager .sb-status-dot.off { background: #d14b4b; }
+    .singbox-manager .sb-runtime-actions { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin-bottom: 17px; }
+    .singbox-manager .sb-runtime-actions .sb-button { padding-left: 6px; padding-right: 6px; }
+    .singbox-manager .sb-core { padding-top: 15px; border-top: 1px solid #edf0f4; }
+    .singbox-manager .sb-core-version { font-weight: 600; overflow-wrap: anywhere; }
+    .singbox-manager .sb-core-build { margin-top: 3px; color: var(--sb-muted); font-size: 11px; line-height: 1.4; overflow-wrap: anywhere; }
+    .singbox-manager .sb-list { border-top: 1px solid #edf0f4; }
+    .singbox-manager .sb-row { display: flex; align-items: center; justify-content: space-between; gap: 14px; min-height: 44px; padding: 9px 0; border-bottom: 1px solid #edf0f4; }
+    .singbox-manager .sb-row:last-child { border-bottom: 0; padding-bottom: 0; }
+    .singbox-manager .sb-row-label { color: var(--sb-muted); font-size: 13px; }
+    .singbox-manager .sb-row-value { min-width: 0; max-width: 66%; overflow: hidden; font-size: 13px; font-weight: 600; text-align: right; text-overflow: ellipsis; white-space: nowrap; }
+    .singbox-manager .sb-inline-status { display: inline-flex; align-items: center; gap: 6px; }
+    .singbox-manager .sb-inline-status::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: #98a2b3; }
+    .singbox-manager .sb-inline-status.good::before { background: #19a974; }
+    .singbox-manager .sb-inline-status.warn::before { background: #e59a22; }
+    .singbox-manager .sb-inline-status.off::before { background: #d14b4b; }
+    .singbox-manager .sb-tools { display: grid; gap: 10px; margin-top: 14px; }
+    .singbox-manager .sb-tool { overflow: hidden; }
+    .singbox-manager .sb-tool > summary { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 16px 18px; list-style: none; cursor: pointer; user-select: none; }
+    .singbox-manager .sb-tool > summary::-webkit-details-marker { display: none; }
+    .singbox-manager .sb-tool > summary::after { content: "展开"; color: var(--sb-blue); font-size: 13px; }
+    .singbox-manager .sb-tool[open] > summary::after { content: "收起"; }
+    .singbox-manager .sb-tool-summary { display: flex; align-items: baseline; gap: 10px; min-width: 0; }
+    .singbox-manager .sb-tool-title { font-weight: 650; }
+    .singbox-manager .sb-tool-meta { color: var(--sb-muted); font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .singbox-manager .sb-tool-meta.error { color: var(--sb-red); }
+    .singbox-manager .sb-tool-content { padding: 0 18px 18px; border-top: 1px solid #edf0f4; }
+    .singbox-manager .sb-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 12px 0; }
+    .singbox-manager .sb-note { padding-top: 14px; color: var(--sb-muted); font-size: 12px; line-height: 1.6; }
+    .singbox-manager .sb-note strong { color: var(--sb-text); }
+    .singbox-manager .sb-output { min-height: 96px; max-height: 380px; margin: 10px 0 0; overflow: auto; white-space: pre-wrap; word-break: break-all; border-radius: 9px; padding: 13px 14px; background: #101828; color: #d0d5dd; font: 12px/1.55 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+    .singbox-manager .sb-output:empty { display: none; }
+    @media (max-width: 860px) {
+        .singbox-manager .sb-overview { align-items: flex-start; flex-direction: column; }
+        .singbox-manager .sb-overview-metrics { width: 100%; min-width: 0; }
+        .singbox-manager .sb-main-grid { grid-template-columns: 1fr; }
+    }
+    @media (max-width: 640px) {
+        .singbox-manager { padding-top: 0; }
+        .singbox-manager .sb-page-header { align-items: flex-start; flex-direction: column; }
+        .singbox-manager .sb-header-actions { width: 100%; }
+        .singbox-manager .sb-header-actions .sb-button { flex: 1; }
+        .singbox-manager .sb-overview { padding: 18px; }
+        .singbox-manager .sb-overview-metrics { grid-template-columns: 1fr; }
+        .singbox-manager .sb-metric { padding: 10px 0; border-top: 1px solid #e0e6ef; border-left: 0; }
+        .singbox-manager .sb-runtime-actions { grid-template-columns: 1fr; }
+        .singbox-manager .sb-toolbar { align-items: flex-start; flex-direction: column; }
+    }
+</style>
+
+<div class="singbox-manager">
+    <header class="sb-page-header">
+        <div>
+            <h2>Sing-box 管理</h2>
+            <div id="sb-updated" class="sb-page-subtitle">正在读取设备状态</div>
+        </div>
+        <div class="sb-header-actions">
+            <button id="sb-open-panel" class="sb-button sb-button-primary sb-action" type="button">打开 Zashboard</button>
+            <button id="sb-refresh" class="sb-button sb-action" type="button">刷新</button>
+        </div>
+    </header>
+
+    <div id="sb-message" class="sb-message" role="status" aria-live="polite">正在读取设备状态……</div>
+
+    <section class="sb-overview">
+        <div id="sb-health" class="sb-health">
+            <span class="sb-health-dot"></span>
+            <div>
+                <div id="sb-health-title" class="sb-health-title">正在检查</div>
+                <div id="sb-health-detail" class="sb-health-detail">请稍候</div>
+            </div>
+        </div>
+        <div class="sb-overview-metrics">
+            <div class="sb-metric">
+                <div class="sb-metric-label">当前引擎</div>
+                <div id="sb-engine" class="sb-metric-value">—</div>
+            </div>
+            <div class="sb-metric">
+                <div class="sb-metric-label">代理模式</div>
+                <div id="sb-mode" class="sb-metric-value">—</div>
+            </div>
+            <div class="sb-metric">
+                <div class="sb-metric-label">累计下载 / 上传</div>
+                <div id="sb-traffic" class="sb-metric-value">—</div>
+            </div>
+        </div>
+    </section>
+
+    <div class="sb-main-grid">
+        <section class="sb-card sb-card-body">
+            <div class="sb-card-header">
+                <div><h3 class="sb-card-title">服务与核心</h3><div class="sb-card-caption">启停 sing-box 1.14.4 宿主 TUN</div></div>
+                <div id="sb-service-message" class="sb-local-message" role="status" aria-live="polite"></div>
+            </div>
+            <div class="sb-runtime-top">
+                <div class="sb-runtime-state"><span id="sb-service-dot" class="sb-status-dot"></span><div><strong id="sb-service">读取中</strong><div id="sb-runtime-meta" class="sb-runtime-meta">PID —</div></div></div>
+            </div>
+            <div class="sb-runtime-actions">
+                <button id="sb-start" class="sb-button sb-button-primary sb-action" type="button">启动</button>
+                <button id="sb-stop" class="sb-button sb-button-danger sb-action" type="button">停止</button>
+                <button id="sb-restart" class="sb-button sb-action" type="button">重启</button>
+            </div>
+            <div class="sb-core">
+                <div class="sb-core-version" id="sb-version">—</div>
+                <div class="sb-core-build" id="sb-version-build">版本信息不可用</div>
+            </div>
+        </section>
+
+        <section class="sb-card sb-card-body">
+            <div class="sb-card-header">
+                <div><h3 class="sb-card-title">数据面与校验</h3><div class="sb-card-caption">捕获 / DHCP / 订阅 / 守护进程</div></div>
+            </div>
+            <div class="sb-list">
+                <div class="sb-row"><span class="sb-row-label">数据面</span><span id="sb-tun" class="sb-row-value sb-inline-status">读取中</span></div>
+                <div class="sb-row"><span class="sb-row-label">数据面详情</span><span id="sb-tun-addr" class="sb-row-value">—</span></div>
+                <div class="sb-row"><span class="sb-row-label">DHCP 3/6</span><span id="sb-dhcp" class="sb-row-value sb-inline-status">读取中</span></div>
+                <div class="sb-row"><span class="sb-row-label">订阅 provider</span><span id="sb-providers" class="sb-row-value">—</span></div>
+                <div class="sb-row"><span class="sb-row-label">看门狗（15s）</span><span id="sb-watchdog" class="sb-row-value sb-inline-status">读取中</span></div>
+                <div class="sb-row"><span class="sb-row-label">DHCP keeper</span><span id="sb-keeper" class="sb-row-value sb-inline-status">读取中</span></div>
+                <div class="sb-row"><span class="sb-row-label">手动停止标记</span><span id="sb-manual" class="sb-row-value sb-inline-status">读取中</span></div>
+            </div>
+        </section>
+    </div>
+
+    <div class="sb-tools">
+        <details id="sb-switch-details" class="sb-card sb-tool">
+            <summary><span class="sb-tool-summary"><span class="sb-tool-title">引擎切换（危险）</span><span id="sb-switch-meta" class="sb-tool-meta">sing-box ↔ mihomo netns</span></span></summary>
+            <div class="sb-tool-content">
+                <div class="sb-note">
+                    <strong>切到 sing-box</strong>：停用 mihomo、把 DHCP 网关/DNS 改为 <code>192.168.0.1</code>，随后启动 sing-box 并自检。<br>
+                    <strong>切回 mihomo</strong>：停止 sing-box、把 DHCP 网关/DNS 改为 <code>192.168.0.254</code>，再启动 mihomo netns。该回滚路径尚未演练，失败会导致整网断网，需要 adb 救回。
+                </div>
+                <div class="sb-toolbar">
+                    <span class="sb-card-caption">两次确认后才会执行</span>
+                    <div class="sb-actions">
+                        <button id="sb-switchover" class="sb-button sb-action" type="button">切到 sing-box</button>
+                        <button id="sb-rollback" class="sb-button sb-button-danger sb-action" type="button">切回 mihomo</button>
+                    </div>
+                </div>
+                <pre id="sb-switch-result" class="sb-output"></pre>
+            </div>
+        </details>
+
+        <details id="sb-config-details" class="sb-card sb-tool">
+            <summary><span class="sb-tool-summary"><span class="sb-tool-title">配置检查</span><span id="sb-config-meta" class="sb-tool-meta">sing-box check -c config.json</span></span></summary>
+            <div class="sb-tool-content">
+                <div class="sb-toolbar">
+                    <span class="sb-card-caption">只读检查，不会重启核心</span>
+                    <div class="sb-actions">
+                        <button id="sb-config-check" class="sb-button sb-action" type="button">开始检查</button>
+                    </div>
+                </div>
+                <pre id="sb-config-result" class="sb-output"></pre>
+            </div>
+        </details>
+
+        <details id="sb-logs-details" class="sb-card sb-tool">
+            <summary><span class="sb-tool-summary"><span class="sb-tool-title">运行日志</span><span id="sb-logs-meta" class="sb-tool-meta">最近 120 行</span></span></summary>
+            <div class="sb-tool-content">
+                <div class="sb-toolbar">
+                    <span class="sb-card-caption">/data/sing-box/state/sing-box.log</span>
+                    <div class="sb-actions">
+                        <button id="sb-load-logs" class="sb-button sb-action" type="button">读取日志</button>
+                    </div>
+                </div>
+                <pre id="sb-logs" class="sb-output"></pre>
+            </div>
+        </details>
+    </div>
+</div>

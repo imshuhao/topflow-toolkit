@@ -8,36 +8,6 @@ static int contains_text_ci(const char *text, const char *needle)
     return 0;
 }
 
-/* datad stores addresses as family-specific arrays of {address, mask}.
- * Read both fields from the same entry, never from another family or child.
- * Flat fields are accepted only when the family array is absent. */
-static void collect_interface_address(const char *interface, const char *family,
-                                      char *address, size_t size, long *mask)
-{
-    const char *p;
-    char entry[1024];
-    if (!size) return;
-    address[0] = '\0';
-    *mask = 0;
-    if (!json_value(interface, family, &p)) {
-        if (json_string(interface, "address", address, size) && address[0])
-            *mask = json_long(interface, "mask", 0);
-        return;
-    }
-    if (*p++ != '[') return;
-    for (;;) {
-        while (*p == ' ' || *p == '\t' || *p == '\r' || *p == '\n') p++;
-        if (*p != '{' || !copy_json_object(p, entry, sizeof(entry))) return;
-        if (json_string(entry, "address", address, size) && address[0]) {
-            *mask = json_long(entry, "mask", 0);
-            return;
-        }
-        p += strlen(entry);
-        while (*p == ' ' || *p == '\t' || *p == '\r' || *p == '\n') p++;
-        if (*p++ != ',') return;
-    }
-}
-
 static int collect_modem_status(const char *state, int index,
                                 struct modem_status *status)
 {
@@ -137,9 +107,9 @@ static int collect_modem_status(const char *state, int index,
             status->ipv4_up = json_bool(interface, "up", 0);
             json_string(interface, "device", status->ipv4_device,
                         sizeof(status->ipv4_device));
-            collect_interface_address(interface, "ipv4", status->ipv4_address,
-                                      sizeof(status->ipv4_address),
-                                      &status->ipv4_mask);
+            json_string(interface, "address", status->ipv4_address,
+                        sizeof(status->ipv4_address));
+            status->ipv4_mask = json_long(interface, "mask", 0);
             json_string_array_join(interface, "dns", status->ipv4_dns,
                                    sizeof(status->ipv4_dns));
         }
@@ -147,9 +117,9 @@ static int collect_modem_status(const char *state, int index,
             status->ipv6_up = json_bool(interface, "up", 0);
             json_string(interface, "device", status->ipv6_device,
                         sizeof(status->ipv6_device));
-            collect_interface_address(interface, "ipv6", status->ipv6_address,
-                                      sizeof(status->ipv6_address),
-                                      &status->ipv6_mask);
+            json_string(interface, "address", status->ipv6_address,
+                        sizeof(status->ipv6_address));
+            status->ipv6_mask = json_long(interface, "mask", 0);
             json_string_array_join(interface, "dns", status->ipv6_dns,
                                    sizeof(status->ipv6_dns));
         }
@@ -234,6 +204,8 @@ static int parse_fan_curve(const char *cooling, const char *key,
         points[count].hysteresis = (int)json_long(point, "hysteresis_celsius", 0);
         points[count].pwm = (int)json_long(point, "pwm", 0);
         points[count].speed_percent = (int)json_long(point, "speed_percent", 0);
+        if (count > 0 && points[count].temperature <= points[count - 1].temperature)
+            return 0; /* 脏曲线（同温/非单调）整条弃用，调用方回退默认（H3） */
         count++;
         cursor = start + strlen(point);
     }
@@ -337,6 +309,109 @@ static int collect_device_status(const char *state, struct device_status *status
     status->valid = found > 0;
     return status->valid;
 }
+/* --- netdev 实时流量口径（2026-09-18，替代 QCMAP 污染计数） ---
+ * zwrt-datad 的 x75 traffic 来自 ZTE `zwrt_data` → `zwrt_qcmap_cli`
+ * get_qclidst：QCMAP 的 ipv6_tx 把 LAN 侧 v6 下行回显计入上行
+ * （实机 ipv6_tx≈ipv6_rx≈下行流，而 rmnet_data0 真实上行极小），
+ * 导致锁屏/三卡页面 5G 卡「上行≈下行」。V3E 两路 ZTE 直接读 sysfs，
+ * 本就干净；三路统一改由 netdev 计数自算，口径一致：
+ * x75 = rmnet_data0 + rmnet_ipa0（IPA 卸载路径），v3e* = 各自 netdev。 */
+#define IFSTATS_INTERVAL_MIN_MS 500LL
+#define IFSTATS_INTERVAL_MAX_MS 60000LL
+
+struct ifstats_sample {
+    unsigned long long rx;
+    unsigned long long tx;
+    long long at_ms;
+    int valid;
+};
+
+static struct ifstats_sample ifstats_prev[NETWORK_MODEM_COUNT];
+static unsigned long long ifstats_max_rx[NETWORK_MODEM_COUNT];
+static unsigned long long ifstats_max_tx[NETWORK_MODEM_COUNT];
+
+static int read_netdev_bytes(const char *ifname, unsigned long long *rx,
+                             unsigned long long *tx)
+{
+    char path[128];
+    FILE *file;
+    int ok = 0;
+    *rx = *tx = 0;
+    snprintf(path, sizeof(path), "/sys/class/net/%s/statistics/rx_bytes", ifname);
+    file = fopen(path, "r");
+    if (!file) return 0;
+    if (fscanf(file, "%llu", rx) == 1) ok = 1;
+    fclose(file);
+    if (!ok) return 0;
+    ok = 0;
+    snprintf(path, sizeof(path), "/sys/class/net/%s/statistics/tx_bytes", ifname);
+    file = fopen(path, "r");
+    if (!file) return 0;
+    if (fscanf(file, "%llu", tx) == 1) ok = 1;
+    fclose(file);
+    return ok;
+}
+
+static void override_modem_traffic_with_netdev(struct network_status *status)
+{
+    static const char *const x75_ifaces[] = {"rmnet_data0", "rmnet_ipa0"};
+    static const char *const v3e1_ifaces[] = {"V3E1net0"};
+    static const char *const v3e2_ifaces[] = {"V3E2net0"};
+    static const char *const *const names[NETWORK_MODEM_COUNT] = {
+        x75_ifaces, v3e1_ifaces, v3e2_ifaces
+    };
+    static const int counts[NETWORK_MODEM_COUNT] = {2, 1, 1};
+    unsigned long long device_rx_rate = 0, device_tx_rate = 0;
+    long long now = monotonic_millis();
+    if (!status || !status->valid) return;
+    for (int i = 0; i < NETWORK_MODEM_COUNT; i++) {
+        struct modem_status *modem = &status->modems[i];
+        struct ifstats_sample *prev = &ifstats_prev[i];
+        unsigned long long rx = 0, tx = 0;
+        int readable = 0;
+        modem->rx_rate = 0;
+        modem->tx_rate = 0;
+        for (int n = 0; n < counts[i]; n++) {
+            unsigned long long if_rx, if_tx;
+            if (read_netdev_bytes(names[i][n], &if_rx, &if_tx)) {
+                rx += if_rx;
+                tx += if_tx;
+                readable = 1;
+            }
+        }
+        if (!readable) {
+            /* 接口整体不可读（数据通话断开等）：复位基线，
+             * 避免恢复后把断档累计成一个尖峰 */
+            prev->valid = 0;
+            modem->rx_bytes = 0;
+            modem->tx_bytes = 0;
+            continue;
+        }
+        if (prev->valid && rx >= prev->rx && tx >= prev->tx) {
+            long long dt = now - prev->at_ms;
+            if (dt >= IFSTATS_INTERVAL_MIN_MS && dt <= IFSTATS_INTERVAL_MAX_MS) {
+                modem->rx_rate = (rx - prev->rx) * 1000ULL / (unsigned long long)dt;
+                modem->tx_rate = (tx - prev->tx) * 1000ULL / (unsigned long long)dt;
+            }
+        } /* 计数回退（数据通话重建归零）：本拍速率取 0，基线换新 */
+        if (modem->rx_rate > ifstats_max_rx[i]) ifstats_max_rx[i] = modem->rx_rate;
+        if (modem->tx_rate > ifstats_max_tx[i]) ifstats_max_tx[i] = modem->tx_rate;
+        modem->max_rx_rate = ifstats_max_rx[i];
+        modem->max_tx_rate = ifstats_max_tx[i];
+        modem->rx_bytes = rx;
+        modem->tx_bytes = tx;
+        prev->rx = rx;
+        prev->tx = tx;
+        prev->at_ms = now;
+        prev->valid = 1;
+        device_rx_rate += modem->rx_rate;
+        device_tx_rate += modem->tx_rate;
+    }
+    /* 设备页“全局流量”实时速率：三路 netdev 之和（原为被污染的 x75 单路） */
+    status->device.traffic_rx_rate = device_rx_rate;
+    status->device.traffic_tx_rate = device_tx_rate;
+}
+
 
 static int collect_network_status(struct network_status *status,
                                   char *state, size_t state_size)
@@ -350,6 +425,7 @@ static int collect_network_status(struct network_status *status,
     for (int i = 0; i < NETWORK_MODEM_COUNT; i++)
         if (collect_modem_status(state, i, &status->modems[i])) found++;
     status->valid = found > 0;
+    override_modem_traffic_with_netdev(status);
     update_network_clock(status);
     if (status->valid && !probe_logged) {
         FILE *probe = fopen("/tmp/touchui-network.log", "w");

@@ -24,6 +24,47 @@ providers/
 *.pcap
 *.db
 
+# Secrets / production configs (never commit)
+config.production-adapted.yaml
+config.production-adapted.yaml*
+*.running-bak
+.base.tmp.yaml
+
+# sing-box generated build cache / subscription material
+singbox/.cache/
+singbox/generated/providers.conf
+singbox/generated/config.*.json
+singbox/generated/**/providers.conf
+singbox/generated/**/config.*.json
+
+# Local forensics / scratch captures
+_forensic_*.json
+batch*.json
+c254.json
+p254.json
+p1.json
+s1.json
+s2.json
+probe_out/
+.adbd-diag/
+.usbdiag/
+docs/diagnostics/
+
+# Backups and editor junk
+*.bak
+*.bak*
+*~
+
+# Scratch / tooling
+tmp/
+.workbuddy/
+scripts/
+scripts/legacy/
+hall-fan-switch/
+
+# Local photos with possible EXIF/location data
+*.JPG
+
 __pycache__/
 *.pyc
 

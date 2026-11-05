@@ -6,6 +6,15 @@ static void queue_action_with_params(int action, int band, int value, int value2
         shared_action_band = band;
         shared_action_value = value;
         shared_action_value2 = value2;
+        /* FAN_CUSTOM 的 need_default 在 UI 线程入队时快照（M17）：
+         * ui_network_status 为 UI 线程私有，worker 线程读取会撕裂 */
+        if (action == ACTION_FAN_CUSTOM) {
+            const struct device_status *device = &ui_network_status.device;
+            shared_action_fan_need_default =
+                fan_custom_curve_is_off(device) || device->fan_custom_curve_count < 2;
+        } else {
+            shared_action_fan_need_default = 0;
+        }
         safe_copy(shared_message, sizeof(shared_message), "操作已提交…");
         shared_message_page = message_page_for_action(action);
         shared_generation++;
@@ -46,6 +55,7 @@ static void hide_extension_pages(void)
 {
     if (menu_page) lv_obj_add_flag_p(menu_page, LV_OBJ_FLAG_HIDDEN);
     if (manager_page) lv_obj_add_flag_p(manager_page, LV_OBJ_FLAG_HIDDEN);
+    if (wanbal_page) lv_obj_add_flag_p(wanbal_page, LV_OBJ_FLAG_HIDDEN);
     if (network_page) lv_obj_add_flag_p(network_page, LV_OBJ_FLAG_HIDDEN);
     if (network_detail_page)
         lv_obj_add_flag_p(network_detail_page, LV_OBJ_FLAG_HIDDEN);
@@ -62,7 +72,8 @@ static void show_page(enum page_id page)
     hide_confirm();
     hide_extension_pages();
     if (page != current_page &&
-        (current_page == PAGE_MIHOMO || current_page == PAGE_DEVICE ||
+        (current_page == PAGE_SINGBOX || current_page == PAGE_WANBAL ||
+         current_page == PAGE_DEVICE ||
          current_page == PAGE_COOLING_CURVE ||
          current_page == PAGE_DIAGNOSTICS)) {
         pthread_mutex_lock(&shared_lock);
@@ -82,10 +93,15 @@ static void show_page(enum page_id page)
         lv_obj_clear_flag_p(network_detail_page, LV_OBJ_FLAG_HIDDEN);
     else if (page == PAGE_NETWORK_IDENTITY && network_identity_page)
         lv_obj_clear_flag_p(network_identity_page, LV_OBJ_FLAG_HIDDEN);
-    else if (page == PAGE_MIHOMO && manager_page) {
+    else if (page == PAGE_SINGBOX && manager_page) {
         lv_obj_clear_flag_p(manager_page, LV_OBJ_FLAG_HIDDEN);
         pthread_mutex_lock(&shared_lock);
         force_refresh = 1;
+        pthread_mutex_unlock(&shared_lock);
+    } else if (page == PAGE_WANBAL && wanbal_page) {
+        lv_obj_clear_flag_p(wanbal_page, LV_OBJ_FLAG_HIDDEN);
+        pthread_mutex_lock(&shared_lock);
+        force_wanbal_refresh = 1;
         pthread_mutex_unlock(&shared_lock);
     } else if (page == PAGE_DEVICE && device_page)
         lv_obj_clear_flag_p(device_page, LV_OBJ_FLAG_HIDDEN);
@@ -100,14 +116,16 @@ static void show_stock_page(void)
 {
     show_page(PAGE_STOCK);
     pending_network_view = 0;
-    pending_mihomo_open = 0;
+    pending_singbox_open = 0;
+    pending_wanbal_open = 0;
     pending_device_view = 0;
     pending_extension_cleanup = 1;
 }
 
 static void close_menu_clicked(void *event) { (void)event; show_stock_page(); }
 static void open_network_clicked(void *event) { (void)event; request_network_overview(); }
-static void open_mihomo_clicked(void *event) { (void)event; request_mihomo_page(); }
+static void open_singbox_clicked(void *event) { (void)event; request_singbox_page(); }
+static void open_wanbal_clicked(void *event) { (void)event; request_wanbal_page(); }
 static void feature_back_clicked(void *event) { (void)event; show_page(PAGE_MENU); }
 static void network_detail_back_clicked(void *event) { (void)event; request_network_overview(); }
 static void network_identity_back_clicked(void *event) { (void)event; request_network_detail(); }
@@ -168,7 +186,7 @@ static void refresh_page_clocks(void)
     localtime_r(&now, &tm_value);
     strftime(clock, sizeof(clock), "%H:%M:%S", &tm_value);
     if (menu_shell.clock_label) lv_label_set_text_p(menu_shell.clock_label, clock);
-    if (mihomo_shell.clock_label) lv_label_set_text_p(mihomo_shell.clock_label, clock);
+    if (singbox_shell.clock_label) lv_label_set_text_p(singbox_shell.clock_label, clock);
     if (network_shell.clock_label) lv_label_set_text_p(network_shell.clock_label, clock);
     if (network_detail_shell.clock_label)
         lv_label_set_text_p(network_detail_shell.clock_label, clock);
@@ -180,8 +198,8 @@ static void refresh_page_clocks(void)
         lv_label_set_text_p(cooling_curve_shell.clock_label, clock);
     if (diagnostics_shell.clock_label)
         lv_label_set_text_p(diagnostics_shell.clock_label, clock);
-    if (mihomo_shell.footer_label)
-        lv_label_set_text_p(mihomo_shell.footer_label,
+    if (singbox_shell.footer_label)
+        lv_label_set_text_p(singbox_shell.footer_label,
                             ui_status.stale ? "数据延迟" : "");
     if (network_shell.footer_label)
         lv_label_set_text_p(network_shell.footer_label,
@@ -234,7 +252,7 @@ static void sync_native_lock_visibility(void)
 static void show_confirm(int action, const char *text)
 {
     confirm_action = action;
-    lv_label_set_text_p(confirm_text_label, text);
+    if (confirm_text_label) lv_label_set_text_p(confirm_text_label, text);
     if (confirm_scrim) lv_obj_clear_flag_p(confirm_scrim, LV_OBJ_FLAG_HIDDEN);
     if (confirm_panel) lv_obj_clear_flag_p(confirm_panel, LV_OBJ_FLAG_HIDDEN);
 }
@@ -242,27 +260,19 @@ static void show_confirm(int action, const char *text)
 static void service_clicked(void *event)
 {
     (void)event;
-    if (ui_status.service_enabled)
-        show_confirm(ACTION_SERVICE_DISABLE,
-                     "禁用服务将停止 Mihomo，并暂时撤销 DHCP；重新启用后会恢复。确认继续？");
+    if (ui_status.service_running)
+        show_confirm(ACTION_SERVICE_STOP,
+                     "停止 Sing-box 后客户端将直连（不再经过代理），确认继续？");
     else
-        show_confirm(ACTION_SERVICE_ENABLE, "启用 Mihomo 服务并恢复原有网络设置？");
+        show_confirm(ACTION_SERVICE_START, "启动 Sing-box 服务？");
 }
 
-static void transparent_clicked(void *event)
+static void restart_clicked(void *event)
 {
     (void)event;
-    if (ui_status.transparent_enabled)
-        show_confirm(ACTION_TRANSPARENT_OFF,
-                     "关闭透明代理会重启 Mihomo，并撤销 DHCP 下发，确认继续？");
-    else
-        show_confirm(ACTION_TRANSPARENT_ON,
-                     "开启透明代理会重启 Mihomo，但不会自动开启 DHCP 下发，确认继续？");
+    show_confirm(ACTION_SERVICE_RESTART,
+                 "重启期间代理会中断约 5–15 秒，确认继续？");
 }
-
-static void mode_rule_clicked(void *event) { (void)event; queue_action(ACTION_MODE_RULE); }
-static void mode_global_clicked(void *event) { (void)event; queue_action(ACTION_MODE_GLOBAL); }
-static void mode_direct_clicked(void *event) { (void)event; queue_action(ACTION_MODE_DIRECT); }
 static void confirm_clicked(void *event)
 {
     int action = confirm_action;

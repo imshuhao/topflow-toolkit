@@ -1,0 +1,25 @@
+{
+  "web": {
+    "description": "sing-box device-side manager",
+    "read": {
+      "ubus": {
+        "singbox.api": [
+          "status",
+          "logs",
+          "config_check"
+        ]
+      }
+    },
+    "write": {
+      "ubus": {
+        "singbox.api": [
+          "service_start",
+          "service_stop",
+          "service_restart",
+          "switchover",
+          "rollback"
+        ]
+      }
+    }
+  }
+}
