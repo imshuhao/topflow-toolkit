@@ -1,9 +1,11 @@
 # WebSSH 部署记录（2026-10-27）
 
+> **出处**：原作 [`o8oo8o/WebSSH`](https://github.com/o8oo8o/WebSSH)（MIT）→ 面板 MOD [`kanoqwq/WebSSH-u60pro`](https://github.com/kanoqwq/WebSSH-u60pro)；本仓库部署包装见 [`webssh/`](../webssh/)。TopFlow 工具包原作者 [`imshuhao/topflow-toolkit`](https://github.com/imshuhao/topflow-toolkit)。
+
 > 设备：ZTE TopFlow MU5252 B20 · OpenWrt 23.05.4 `sdx75/generic` · aarch64/musl · root（ADB 15555）
 > 来源：`kanoqwq/WebSSH-u60pro`（GoWebSSH-MOD，Go 1.23，`CGO_ENABLED=0` 静态）
 > 性质：已实机部署并验证；未 reboot（避免打断现网 sing-box），rc.local 在 overlay 持久，下次重启自动生效
-> 口令：2026-10-27 Web 管理员与内置 sshd root 两处密码已按用户要求改为同一个 6 位弱口令（用户知情，仅 LAN 可达）；改法与验证见 §8
+> 口令：2026-10-27 Web 管理员与内置 sshd root 两处密码已按用户要求改为同一弱口令（用户知情，仅 LAN 可达；公开文档不写明文）；改法与验证见 §8
 
 > **2026-10-30 补（USB 下也能用，不需要 WiFi）**：`8899`（Web UI）与 `22622`（内置 sshd）都绑
 > `192.168.0.1`；设备 `rndis0` 已桥接进 `br-lan`，所以插 **USB2 口**时 PC 从 RNDIS 拿到
@@ -380,7 +382,7 @@ $ curl -s -o /dev/null -w '%{http_code}' http://192.168.0.1:8899/app/assets/inde
 $ tail -c +980898 /tmp/webssh.log | grep -c 'Ubus 调用失败'                                   -> 0
 ```
 
-headless Chromium（登录 `admin` + 6 位口令，12s 观察 6 次采样）：URL 落到 `#/app`，`加载失败`/`ubus 调用失败` 均不出现，console error 0，流量统计持续刷新（45 KB/s ↗ / 3.0 MB/s ↘，当日 425.7 MB、本月 8.3 GB、总下载 249.7 GB），网络接口状态显示 WAN IPv4 `10.70.159.61` / 网关 `10.70.159.62` / WAN IPv6 `2408:842c:...`。
+headless Chromium（登录 `admin` + 自设口令，12s 观察 6 次采样）：URL 落到 `#/app`，`加载失败`/`ubus 调用失败` 均不出现，console error 0，流量统计持续刷新（45 KB/s ↗ / 3.0 MB/s ↘，当日 425.7 MB、本月 8.3 GB、总下载 249.7 GB），网络接口状态显示 WAN IPv4 `10.70.159.61` / 网关 `10.70.159.62` / WAN IPv6 `2408:842c:...`。
 
 SSH 回归：paramiko `root@192.168.0.1:22622` → `AUTH_OK SSH-2.0-OpenSSH`，pty `/dev/pts/0`，`id` = `uid=0(root)`。
 

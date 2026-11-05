@@ -1,0 +1,12 @@
+{
+  "db_type": "sqlite",
+  "db_dsn": "gowebssh.db",
+  "username": "admin",
+  "password": "CHANGE_ME_WEB_ADMIN",
+  "sshd_host": "192.168.0.1",
+  "sshd_port": "22622",
+  "sshd_user": "root",
+  "sshd_pwd": "CHANGE_ME_SSHD_ROOT",
+  "jwt_secret": "CHANGE_ME_JWT_SECRET_64CHARS_MINIMUM________________________",
+  "session_secret": "CHANGE_ME_SESSION_SECRET_64CHARS_MINIMUM___________________"
+}
