@@ -13,6 +13,14 @@ sys.path.insert(0, str(ROOT))
 from singbox import convert  # noqa: E402
 
 
+def _looks_like_ip(value: str) -> bool:
+    try:
+        ipaddress.ip_address(value)
+        return True
+    except ValueError:
+        return False
+
+
 class ConvertTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
@@ -459,9 +467,17 @@ class ConvertTests(unittest.TestCase):
             {"server": "bootstrap", "strategy": "ipv4_only"},
         )
         # Rule 0 pins node hostnames to bootstrap; NAS DDNS + LAN filter follow.
+        # Domains come from the local Clash fixture — never hardcode a real airport host.
         self.assertEqual(set(cfg["dns"]["rules"][0]), {"domain", "server"})
         self.assertEqual(cfg["dns"]["rules"][0]["server"], "bootstrap")
-        self.assertIn("acc.dxy5213.top", cfg["dns"]["rules"][0]["domain"])
+        node_hosts = {
+            p["server"]
+            for p in (self.clash.get("proxies") or [])
+            if p.get("server") and not _looks_like_ip(p["server"])
+        }
+        pinned = set(cfg["dns"]["rules"][0]["domain"])
+        self.assertTrue(node_hosts, "fixture must expose at least one hostname node")
+        self.assertTrue(node_hosts <= pinned, pinned)
         nas_dns = next(
             r
             for r in cfg["dns"]["rules"]

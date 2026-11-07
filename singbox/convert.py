@@ -575,7 +575,7 @@ BOOTSTRAP_DNS_NAME = "doh.pub"
 PROXY_MARK = 0x2024
 # Broad IPv6 marker (foreign + domestic). NAS / IPv6-auto pools use this:
 # cellular has no route to the home AAAA, and the sole CNˇ⁶ node
-# (li.lxiayida.top AAAA-only) timed out dialling its own server from this WAN.
+# (AAAA-only hostname) timed out dialling its own server from this WAN.
 IPV6_FILTER = r"(?i)(\[v6\]|⁶|\| ipv6|｜IPV6)"
 # Narrower CN-only variant kept for docs / one-off experiments.
 IPV6_CN_FILTER = (
@@ -824,7 +824,7 @@ def remote_provider_entry(
 def patch_provider_v6_domain_resolver(path: Path, resolver: str = "bootstrap") -> int:
     """Force ipv6_only domain_resolver on v6-labelled provider nodes.
 
-    Those nodes often publish AAAA-only hostnames (e.g. ``li.lxiayida.top``).
+    Those nodes often publish AAAA-only hostnames (e.g. ``v6-node.example.invalid``).
     With ``route.default_domain_resolver.strategy=ipv4_only`` the dialer gets
     ``lookup …: empty result`` and the whole NAS path 502s.
     """

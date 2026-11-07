@@ -115,7 +115,7 @@ adb shell 'cd /data/sing-box && ./sing-box run -c lab.json > /tmp/sing-box.log 2
   **无 detour** —— 它要解析节点域名，不能搭自己要连的代理，是 DNS 全代理的**唯一结构性例外**。
   曾经把它改成 `type=tcp` + `detour: ⚡ 引导·DNS`（某个 IP 字面量免流节点的克隆，
   只换 tag、保留 Host/SNI），**真机失败已回滚**：`gstatic` 502、日志
-  `lookup acc.dxy5213.top: read response: v2ray-http: unexpected status: 400 Bad Request`
+  `lookup node.example.invalid: read response: v2ray-http: unexpected status: 400 Bad Request`
   —— 免流节点是 Host 白名单 CDN 前端，不转发任意 TCP 负载。`⚡ 引导·DNS` 与克隆代码已删除。
   `route.default_domain_resolver = bootstrap`（`strategy: ipv4_only`：节点侧只能靠 v4，
   三卡才均衡得起来）。

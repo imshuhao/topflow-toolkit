@@ -171,7 +171,7 @@ outbound/direct[v6grp]: outbound connection to [2606:4700:4700::1111]:80
 
 ### 2.5 可选强化（不属于 V1，需单独授权）
 
-- **DNS 上游也走代理**：现仓库重生成版已给 `ali/ali2` 加 `detour: 🚀 免流模式`（设备旧版还没有）；但 `bootstrap` UDP `223.5.5.5` 仍是直连，因为 21 个出站节点用域名（`acc.dxy5213.top`、`cf.877774.xyz` 等），连代理前必须先解析（鸡生蛋）。
+- **DNS 上游也走代理**：现仓库重生成版已给 `ali/ali2` 加 `detour: 🚀 免流模式`（设备旧版还没有）；但 `bootstrap` UDP `223.5.5.5` 仍是直连，因为出站节点多用域名（如 `node.example.invalid`），连代理前必须先解析（鸡生蛋）。
   真正去掉它需把 DoH 写成 **IP + `tls.server_name`** 并 `detour`，同时把节点域名固定成 IP（会牺牲机场换 IP 的能力）。建议**接受**这条 DNS 元数据直连，并在报告中写明。
 - **`.lan/.local` 用 `local` server**（`{"tag":"lan","type":"local"}`）替代 `ali`，减少一次外网查询；与本次问题无关。
 
