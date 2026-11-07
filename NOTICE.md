@@ -21,3 +21,9 @@ https://github.com/imshuhao/topflow-toolkit/blob/main/README.md
 | sing-box | [`SagerNet/sing-box`](https://github.com/SagerNet/sing-box) 等 | 设备侧二进制不随本 fork 分发；配置生成见 `singbox/` | 从其上游 |
 
 再分发时请同时保留本文件、根目录 `LICENSE`，以及各第三方要求的版权声明。
+
+## 设计稿
+
+触屏控制中心的界面原型（320×480 九宫格 / 共用状态栏 / 日夜令牌）使用 OpenDesign
+在本地设计与走查；仓库只保留移植所需的口径、几何常量与色值，**不含**设计工具的导出快照。
+界面的实现、设备侧适配与全部 LVGL 代码均为本分支原创。
