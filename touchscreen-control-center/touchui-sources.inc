@@ -3,6 +3,5 @@
 #include "touchui-source-io.inc"
 #include "touchui-source-singbox.inc"
 #include "touchui-source-wanbal.inc"
-#include "touchui-source-balance.inc"
 #include "touchui-source-network.inc"
 #include "touchui-source-wifi.inc"

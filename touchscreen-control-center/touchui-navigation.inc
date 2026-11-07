@@ -57,7 +57,6 @@ static void hide_extension_pages(void)
     if (menu_page) lv_obj_add_flag_p(menu_page, LV_OBJ_FLAG_HIDDEN);
     if (manager_page) lv_obj_add_flag_p(manager_page, LV_OBJ_FLAG_HIDDEN);
     if (wanbal_page) lv_obj_add_flag_p(wanbal_page, LV_OBJ_FLAG_HIDDEN);
-    if (balance_page) lv_obj_add_flag_p(balance_page, LV_OBJ_FLAG_HIDDEN);
     if (network_page) lv_obj_add_flag_p(network_page, LV_OBJ_FLAG_HIDDEN);
     if (network_detail_page)
         lv_obj_add_flag_p(network_detail_page, LV_OBJ_FLAG_HIDDEN);
@@ -77,7 +76,6 @@ static void show_page(enum page_id page)
     if (page != current_page &&
         (current_page == PAGE_SINGBOX ||
          current_page == PAGE_WANBAL ||
-         current_page == PAGE_BALANCE ||
          current_page == PAGE_DEVICE ||
          current_page == PAGE_COOLING_CURVE ||
          current_page == PAGE_DIAGNOSTICS)) {
@@ -108,11 +106,6 @@ static void show_page(enum page_id page)
         pthread_mutex_lock(&shared_lock);
         force_wanbal_refresh = 1;
         pthread_mutex_unlock(&shared_lock);
-    } else if (page == PAGE_BALANCE && balance_page) {
-        lv_obj_clear_flag_p(balance_page, LV_OBJ_FLAG_HIDDEN);
-        pthread_mutex_lock(&shared_lock);
-        force_balance_refresh = 1;
-        pthread_mutex_unlock(&shared_lock);
     } else if (page == PAGE_DEVICE && device_page)
         lv_obj_clear_flag_p(device_page, LV_OBJ_FLAG_HIDDEN);
     else if (page == PAGE_COOLING_CURVE && cooling_curve_page)
@@ -133,7 +126,6 @@ static void show_stock_page(void)
     pending_network_view = 0;
     pending_singbox_open = 0;
     pending_wanbal_open = 0;
-    pending_balance_open = 0;
     pending_charge_open = 0;
     pending_device_view = 0;
     pending_extension_cleanup = 1;
@@ -143,7 +135,6 @@ static void close_menu_clicked(void *event) { (void)event; show_stock_page(); }
 static void open_network_clicked(void *event) { (void)event; request_network_overview(); }
 static void open_singbox_clicked(void *event) { (void)event; request_singbox_page(); }
 static void open_wanbal_clicked(void *event) { (void)event; request_wanbal_page(); }
-static void open_balance_clicked(void *event) { (void)event; request_balance_page(); }
 static void feature_back_clicked(void *event) { (void)event; show_page(PAGE_MENU); }
 static void network_detail_back_clicked(void *event) { (void)event; request_network_overview(); }
 static void network_identity_back_clicked(void *event) { (void)event; request_network_detail(); }

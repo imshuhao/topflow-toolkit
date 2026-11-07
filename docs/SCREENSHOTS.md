@@ -50,29 +50,20 @@
 
 ## OpenDesign 还原页（2026-11）
 
-按 OpenDesign 原型整页还原的触屏页：九宫格控制中心、余量、充电、分流、风扇曲线。
+按 OpenDesign 原型整页还原的触屏页：九宫格控制中心、充电、分流、风扇曲线。
 
-| 九宫格控制中心 | 余量（运营商标签已遮挡） |
+| 九宫格控制中心 | 充电 |
 | --- | --- |
-| ![九宫格控制中心](screenshots/touchscreen/34-cc-mint.png) | ![余量](screenshots/touchscreen/29-balance.png) |
+| ![九宫格控制中心](screenshots/touchscreen/34-cc-mint.png) | ![充电](screenshots/touchscreen/30-charge.png) |
 
-| 充电 | 分流 · 自动·质量 |
+| 分流 · 自动·质量 | 分流 · 自定义 |
 | --- | --- |
-| ![充电](screenshots/touchscreen/30-charge.png) | ![分流自动质量](screenshots/touchscreen/29-wanbal.png) |
+| ![分流自动质量](screenshots/touchscreen/29-wanbal.png) | ![分流自定义](screenshots/touchscreen/24-wanbal-custom.png) |
 
-| 分流 · 自定义 | 风扇曲线 · 原厂阶梯 |
+| 风扇曲线 · 原厂阶梯 | 风扇曲线 · 自定义 |
 | --- | --- |
-| ![分流自定义](screenshots/touchscreen/24-wanbal-custom.png) | ![风扇原厂曲线](screenshots/touchscreen/33-cooling-factory.png) |
+| ![风扇原厂曲线](screenshots/touchscreen/33-cooling-factory.png) | ![风扇自定义曲线](screenshots/touchscreen/33-cooling-custom.png) |
 
-| 风扇曲线 · 自定义 | 风扇曲线 · 应用确认 |
+| 风扇曲线 · 应用确认 | 设备 · 散热 |
 | --- | --- |
-| ![风扇自定义曲线](screenshots/touchscreen/33-cooling-custom.png) | ![风扇曲线确认](screenshots/touchscreen/33-cooling-confirm.png) |
-
-> 余量页顶部两个运营商标签只保留「联通」「电信」，其后的号码后四位已用不透明色块盖成
-> `联通 · ****` / `电信 · ****`。
->
-> **出处**：余量查询的运营商协议参考
-> [`ChinaTelecomOperators/ChinaUnicom`](https://github.com/ChinaTelecomOperators/ChinaUnicom)、
-> [`ChinaTelecomOperators/ChinaTelecom`](https://github.com/ChinaTelecomOperators/ChinaTelecom)、
-> [`margrop/telecom-phone-device-id-tools`](https://github.com/margrop/telecom-phone-device-id-tools)；
-> 见仓库根目录 [`NOTICE.md`](../NOTICE.md)。
+| ![风扇曲线确认](screenshots/touchscreen/33-cooling-confirm.png) | ![设备散热](screenshots/touchscreen/33-device-cool.png) |

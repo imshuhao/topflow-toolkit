@@ -20,20 +20,6 @@ https://github.com/imshuhao/topflow-toolkit/blob/main/README.md
 | WebSSH-u60pro MOD | [`kanoqwq/WebSSH-u60pro`](https://github.com/kanoqwq/WebSSH-u60pro) | B20 补丁在 `webssh/patches/` | 从其仓库 |
 | sing-box | [`SagerNet/sing-box`](https://github.com/SagerNet/sing-box) 等 | 设备侧二进制不随本 fork 分发；配置生成见 `singbox/` | 从其上游 |
 
-## 余量查询：协议参考（必须标明）
-
-触屏「余量」页与设备侧联通/电信查询、授信流程，**协议与请求流程参考**下列开源项目；
-本仓库的触屏展示、本地快照与跳点差分是另行实现，**不是**对其脚本的直接拷贝分发。
-
-| 用途 | 上游 | 说明 | 许可 |
-| --- | --- | --- | --- |
-| 联通短信登录 / `token_online`、余量查询协议 | [`ChinaTelecomOperators/ChinaUnicom`](https://github.com/ChinaTelecomOperators/ChinaUnicom) | 对齐其 `10010_send_sms` / `10010_sms_sign` 一类流程 | GPL-3.0 |
-| 电信余量 / 登录查询协议 | [`ChinaTelecomOperators/ChinaTelecom`](https://github.com/ChinaTelecomOperators/ChinaTelecom) | 查询与登录字段口径对齐 | GPL-3.0 |
-| 电信短信授权 DeviceId（解 3006） | [`margrop/telecom-phone-device-id-tools`](https://github.com/margrop/telecom-phone-device-id-tools) | 对齐其 v1 校验（`androidId` 凯撒 / `deviceUid`） | MIT |
-
-公开分支只含触屏读取 `status.json` 的展示逻辑；采集脚本与账号凭证**不**随本 fork 分发。
-再使用上述协议时，请自行遵守各上游许可与运营商接口条款。
-
 再分发时请同时保留本文件、根目录 `LICENSE`，以及各第三方要求的版权声明。
 
 ## 设计稿
