@@ -85,6 +85,8 @@ static void process_network_navigation(void)
         pending_extension_cleanup = 0;
         destroy_singbox_page();
         destroy_wanbal_page();
+        destroy_balance_page();
+        destroy_charge_page();
         destroy_network_identity();
         destroy_network_detail();
         destroy_network_overview();
@@ -135,7 +137,7 @@ static void process_network_navigation(void)
                 trace_ui_create("selftest-return-overview");
             } else if (selftest_step == 12) {
                 pending_singbox_open = 1;
-                trace_ui_create("selftest-singbox");
+                trace_ui_create("selftest-proxy");
             } else if (selftest_step == 13) {
                 pending_wanbal_open = 1;
                 trace_ui_create("selftest-wanbal");
@@ -172,8 +174,11 @@ static void process_network_navigation(void)
     if (pending_singbox_open && network_parent) {
         pending_singbox_open = 0;
         pending_wanbal_open = 0;
+        pending_balance_open = 0;
         pending_network_view = 0;
         destroy_wanbal_page();
+        destroy_balance_page();
+        destroy_charge_page();
         destroy_network_identity();
         destroy_network_detail();
         destroy_network_overview();
@@ -187,8 +192,11 @@ static void process_network_navigation(void)
     if (pending_wanbal_open && network_parent) {
         pending_wanbal_open = 0;
         pending_singbox_open = 0;
+        pending_balance_open = 0;
         pending_network_view = 0;
         destroy_singbox_page();
+        destroy_balance_page();
+        destroy_charge_page();
         destroy_network_identity();
         destroy_network_detail();
         destroy_network_overview();
@@ -199,11 +207,50 @@ static void process_network_navigation(void)
         refresh_wanbal_ui();
         return;
     }
+    if (pending_balance_open && network_parent) {
+        pending_balance_open = 0;
+        pending_singbox_open = 0;
+        pending_wanbal_open = 0;
+        pending_charge_open = 0;
+        pending_network_view = 0;
+        destroy_singbox_page();
+        destroy_wanbal_page();
+        destroy_charge_page();
+        destroy_network_identity();
+        destroy_network_detail();
+        destroy_network_overview();
+        destroy_device_pages();
+        if (!balance_page && !create_balance_page(network_parent)) return;
+        show_page(PAGE_BALANCE);
+        ui_balance_generation = -1;
+        refresh_balance_ui();
+        return;
+    }
+    if (pending_charge_open && network_parent) {
+        pending_charge_open = 0;
+        pending_singbox_open = 0;
+        pending_wanbal_open = 0;
+        pending_balance_open = 0;
+        pending_network_view = 0;
+        destroy_singbox_page();
+        destroy_wanbal_page();
+        destroy_balance_page();
+        destroy_network_identity();
+        destroy_network_detail();
+        destroy_network_overview();
+        destroy_device_pages();
+        if (!charge_page && !create_charge_page(network_parent)) return;
+        show_page(PAGE_CHARGE);
+        refresh_charge_ui();
+        return;
+    }
     view = pending_network_view;
     if (!view || !network_parent) return;
     pending_network_view = 0;
     destroy_singbox_page();
     destroy_wanbal_page();
+    destroy_balance_page();
+    destroy_charge_page();
     destroy_device_pages();
     if (view == 1) {
         destroy_network_identity();

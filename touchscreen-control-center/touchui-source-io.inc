@@ -112,28 +112,41 @@ static int json_output_complete(const char *json)
     return end > start && end[-1] == '}';
 }
 
-static void touchui_mgr_trace(const char *phase, const char *arg1, const char *arg2, int rc)
+static void touchui_mgr_trace(const char *phase, const char *const *args, int count, int rc)
 {
-    int logfd;
+    int logfd, n, i;
     char line[256];
-    int n;
+    size_t used = 0;
     logfd = open("/tmp/touchui-singbox-manager.log", O_WRONLY | O_CREAT | O_APPEND, 0644);
     if (logfd < 0) return;
-    if (arg2)
-        n = snprintf(line, sizeof(line), "%ld [touchui] %s %s %s rc=%d\n",
-                     (long)time(NULL), phase, arg1 ? arg1 : "-", arg2, rc);
-    else
-        n = snprintf(line, sizeof(line), "%ld [touchui] %s %s rc=%d\n",
-                     (long)time(NULL), phase, arg1 ? arg1 : "-", rc);
-    if (n > 0) {
-        if (n >= (int)sizeof(line)) n = (int)sizeof(line) - 1;
-        (void)write(logfd, line, (size_t)n);
+    n = snprintf(line, sizeof(line), "%ld [touchui] %s", (long)time(NULL), phase);
+    if (n < 0) n = 0;
+    if ((size_t)n >= sizeof(line)) n = (int)sizeof(line) - 1;
+    used = (size_t)n;
+    for (i = 0; args && i < count && used + 1 < sizeof(line); i++) {
+        n = snprintf(line + used, sizeof(line) - used, " %s",
+                     args[i] ? args[i] : "-");
+        if (n < 0) break;
+        if ((size_t)n >= sizeof(line) - used) {
+            used = sizeof(line) - 1;
+            break;
+        }
+        used += (size_t)n;
     }
+    if (used + 8 < sizeof(line)) {
+        n = snprintf(line + used, sizeof(line) - used, " rc=%d\n", rc);
+        if (n > 0) used += (size_t)n;
+    }
+    line[used < sizeof(line) ? used : sizeof(line) - 1] = '\0';
+    (void)write(logfd, line, strlen(line));
     close(logfd);
 }
 
-/* Execute only the fixed manager path and fixed arguments; no shell is used. */
-static int run_singbox_manager(char *output, size_t size, const char *arg1, const char *arg2)
+/* Execute only the fixed manager path and fixed arguments; no shell is used.
+ * args[] 是脚本参数（不含脚本自身路径），argv 在此拼成固定数组，最多 6 个：
+ * 例如 {"wan-mode-set","custom","zte_mwan2","zte_mwan3,zte_mwan4","0"}。 */
+static int run_singbox_manager_args(char *output, size_t size,
+                                    const char *const *args, int count)
 {
     static char *const clean_env[] = {
         "PATH=/usr/sbin:/usr/bin:/sbin:/bin",
@@ -141,13 +154,15 @@ static int run_singbox_manager(char *output, size_t size, const char *arg1, cons
         "LANG=C",
         NULL
     };
-    int pipefd[2], status = -1;
+    char *argv[8];
+    int pipefd[2], status = -1, i;
     pid_t pid;
     size_t used = 0;
-    ssize_t count;
+    ssize_t read_count;
     if (!size) return -1;
     output[0] = '\0';
-    touchui_mgr_trace("begin", arg1, arg2, 0);
+    if (!args || count <= 0 || count > 6) return -1;
+    touchui_mgr_trace("begin", args, count, 0);
     if (pipe(pipefd) < 0) return -1;
     pid = fork();
     if (pid < 0) { close(pipefd[0]); close(pipefd[1]); return -1; }
@@ -158,18 +173,15 @@ static int run_singbox_manager(char *output, size_t size, const char *arg1, cons
         close(pipefd[1]);
         logfd = open("/tmp/touchui-singbox-manager.log", O_WRONLY|O_CREAT|O_APPEND, 0644);
         if (logfd >= 0) { dup2(logfd, STDERR_FILENO); close(logfd); }
-        if (arg2) {
-            char *const argv[] = {(char *)SINGBOX_MANAGER, (char *)arg1, (char *)arg2, NULL};
-            execve(SINGBOX_MANAGER, argv, clean_env);
-        } else {
-            char *const argv[] = {(char *)SINGBOX_MANAGER, (char *)arg1, NULL};
-            execve(SINGBOX_MANAGER, argv, clean_env);
-        }
+        argv[0] = (char *)SINGBOX_MANAGER;
+        for (i = 0; i < count; i++) argv[i + 1] = (char *)args[i];
+        argv[count + 1] = NULL;
+        execve(SINGBOX_MANAGER, argv, clean_env);
         _exit(127);
     }
     close(pipefd[1]);
-    while ((count = read(pipefd[0], output + used, size - used - 1)) > 0) {
-        used += (size_t)count;
+    while ((read_count = read(pipefd[0], output + used, size - used - 1)) > 0) {
+        used += (size_t)read_count;
         if (used + 1 >= size) {
             char discard[512];
             while (read(pipefd[0], discard, sizeof(discard)) > 0) { }
@@ -183,16 +195,27 @@ static int run_singbox_manager(char *output, size_t size, const char *arg1, cons
          * first. Pipe EOF plus a complete JSON document proves that the
          * command finished producing a usable response. */
         if (errno == ECHILD && json_output_complete(output)) {
-            touchui_mgr_trace("done-echild", arg1, arg2, 0);
+            touchui_mgr_trace("done-echild", args, count, 0);
             return 0;
         }
-        touchui_mgr_trace("waitpid-fail", arg1, arg2, -1);
+        touchui_mgr_trace("waitpid-fail", args, count, -1);
         return -1;
     }
     if (!WIFEXITED(status)) {
-        touchui_mgr_trace("bad-status", arg1, arg2, -1);
+        touchui_mgr_trace("bad-status", args, count, -1);
         return -1;
     }
-    touchui_mgr_trace("done", arg1, arg2, WEXITSTATUS(status));
+    touchui_mgr_trace("done", args, count, WEXITSTATUS(status));
     return WEXITSTATUS(status);
+}
+
+/* 固定 1~2 个参数的旧调用口（旧调用点全部保持原样）。 */
+static int run_singbox_manager(char *output, size_t size, const char *arg1, const char *arg2)
+{
+    const char *args[2];
+    int count = 0;
+    if (!arg1) return -1;
+    args[count++] = arg1;
+    if (arg2) args[count++] = arg2;
+    return run_singbox_manager_args(output, size, args, count);
 }

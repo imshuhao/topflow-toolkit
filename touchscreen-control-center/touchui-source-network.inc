@@ -306,6 +306,45 @@ static int collect_device_status(const char *state, struct device_status *status
         status->sms_unread = (int)json_long(sms, "unread", 0);
     if (json_object(state, "nfc", nfc, sizeof(nfc)))
         status->nfc_enabled = json_bool(nfc, "switch", 0);
+    /* 内核 / 发行版：zwrt-datad /state 不带；只读一次缓存（原型设备页要这两行）。 */
+    {
+        static char cached_kernel[48];
+        static char cached_os[48];
+        static int cached;
+        if (!cached) {
+            FILE *fp;
+            char line[128];
+            fp = fopen("/proc/sys/kernel/osrelease", "r");
+            if (fp) {
+                if (fgets(line, sizeof(line), fp)) {
+                    size_t n = strlen(line);
+                    while (n > 0 && (line[n - 1] == '\n' || line[n - 1] == '\r'))
+                        line[--n] = '\0';
+                    safe_copy(cached_kernel, sizeof(cached_kernel), line);
+                }
+                fclose(fp);
+            }
+            fp = fopen("/etc/openwrt_release", "r");
+            if (fp) {
+                char id[32] = "", release[32] = "";
+                while (fgets(line, sizeof(line), fp)) {
+                    if (!id[0])
+                        sscanf(line, "DISTRIB_ID='%31[^']'", id);
+                    if (!release[0])
+                        sscanf(line, "DISTRIB_RELEASE='%31[^']'", release);
+                }
+                fclose(fp);
+                if (id[0] && release[0])
+                    snprintf(cached_os, sizeof(cached_os), "%s %s", id, release);
+                else if (release[0])
+                    safe_copy(cached_os, sizeof(cached_os), release);
+            }
+            cached = 1;
+        }
+        safe_copy(status->kernel_release, sizeof(status->kernel_release),
+                  cached_kernel);
+        safe_copy(status->os_release, sizeof(status->os_release), cached_os);
+    }
     status->valid = found > 0;
     return status->valid;
 }
