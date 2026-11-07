@@ -69,7 +69,7 @@
 | 页面 | 画面 |
 | --- | --- |
 | **九宫格首页**<br>网络 / 代理 / 分流 · 余量 / 设备 / 充电 · 主题 / 两个空位；代理格右上角是运行状态圆点，设备格徽标汇总未读短信、流量限额与温控异常。底部一行是代理状态 + 模式 + 在线卡数。 | ![九宫格首页](docs/screenshots/touchscreen/34-cc-mint.png) |
-| **余量**<br>联通 / 电信两个 tab 共用一套五行卡：**通用余 / 已跳 / 已免 / 共免 / 跳点**，副行给总量、通用已用、本期免费、定向剩余与今日跳点。只读快照，底部标「更新于 / 下次」，「立即刷新」现采一次。 | ![余量](docs/screenshots/touchscreen/29-balance.png) |
+| **余量**（[协议出处见下](#余量查询出处)）<br>联通 / 电信两个 tab 共用一套五行卡：**通用余 / 已跳 / 已免 / 共免 / 跳点**，副行给总量、通用已用、本期免费、定向剩余与今日跳点。只读快照，底部标「更新于 / 下次」，「立即刷新」现采一次。 | ![余量](docs/screenshots/touchscreen/29-balance.png) |
 | **充电**<br>顶部大字是充电功率（`W`），状态行给「充电中 · 输入 x.xx V」；中间电量条 + 距满百分比；下方六行明细（输入电压 / 充电电流 / 充电功率 / 电池电压 / 电池电流 / 电池温度）。未插电时功率归零、前三行显 `--`。 | ![充电](docs/screenshots/touchscreen/30-charge.png) |
 | **分流 · 自动·质量**<br>三段预设 + TCP / UDP 有效权重条。质量降权时顶部用警告色点名被降权的卡（如图中的 `4G#2`），权重按实测延迟/丢包动态算。 | ![分流 · 自动·质量](docs/screenshots/touchscreen/29-wanbal.png) |
 | **分流 · 自定义**<br>TCP / UDP 各三个卡位 chip 手动选池 + 「允许溢出」开关，底部「应用分流」才下发；未应用前只改草稿。该档关闭质量降权与软偏置，卡位按你选的走。 | ![分流 · 自定义](docs/screenshots/touchscreen/24-wanbal-custom.png) |
@@ -79,6 +79,18 @@
 设备页「散热」tab（风扇四键 + 液冷三档 + 曲线入口）见
 [`33-device-cool.png`](docs/screenshots/touchscreen/33-device-cool.png)，
 应用曲线的二次确认见 [`33-cooling-confirm.png`](docs/screenshots/touchscreen/33-cooling-confirm.png)。
+
+### 余量查询出处
+
+联通 / 电信的**查询与授信协议**参考开源项目（触屏五行卡与跳点差分是本分支自研展示层）：
+
+| 用途 | 上游 |
+| --- | --- |
+| 联通短信登录 / `token_online`、流量包查询 | [`ChinaTelecomOperators/ChinaUnicom`](https://github.com/ChinaTelecomOperators/ChinaUnicom)（GPL-3.0） |
+| 电信登录与余量查询 | [`ChinaTelecomOperators/ChinaTelecom`](https://github.com/ChinaTelecomOperators/ChinaTelecom)（GPL-3.0） |
+| 电信 DeviceId 短信授权（解「设备未信任」） | [`margrop/telecom-phone-device-id-tools`](https://github.com/margrop/telecom-phone-device-id-tools)（MIT） |
+
+完整第三方表见 [`NOTICE.md`](NOTICE.md#余量查询协议参考必须标明)。本公开分支**不含**采集脚本与账号凭证。
 
 ---
 
@@ -242,6 +254,11 @@ B20 原厂 NTP/NITZ 路径会把「本地 UTC+8」写进 Unix 墙钟 → TLS/代
 底部标注「更新于 / 下次」并声明是**只读快照**。
 「立即刷新」会调 `balance-watch.sh once` 现采一次（固定路径、不经 shell、凭证不上 argv），
 采完再回读快照。
+运营商侧查询/授信协议对齐
+[`ChinaUnicom`](https://github.com/ChinaTelecomOperators/ChinaUnicom) /
+[`ChinaTelecom`](https://github.com/ChinaTelecomOperators/ChinaTelecom) /
+[`telecom-phone-device-id-tools`](https://github.com/margrop/telecom-phone-device-id-tools)
+（详见 [余量查询出处](#余量查询出处) 与 [`NOTICE.md`](NOTICE.md)）；
 本公开分支**不含**采集脚本与账号凭证，只有读取与展示逻辑。
 
 **充电页**按 `zwrt-datad` 的 `battery` 段显示充电功率（`charger_uv × charger_ua`）、
@@ -521,6 +538,7 @@ sh /data/local/mwan3-tuning/recover.sh --verify                          # 若�
 | **原作者 / 上游** | [@imshuhao](https://github.com/imshuhao) · [imshuhao/topflow-toolkit](https://github.com/imshuhao/topflow-toolkit) |
 | 本 fork | [shizongrengkou/topflow-toolkit](https://github.com/shizongrengkou/topflow-toolkit) |
 | PR | [#2](https://github.com/imshuhao/topflow-toolkit/pull/2) |
+| **余量查询协议参考** | [ChinaUnicom](https://github.com/ChinaTelecomOperators/ChinaUnicom) · [ChinaTelecom](https://github.com/ChinaTelecomOperators/ChinaTelecom) · [telecom-phone-device-id-tools](https://github.com/margrop/telecom-phone-device-id-tools) |
 | 出处清单 | [`NOTICE.md`](NOTICE.md) |
 
 本分支的所有改动都建立在上游作者的原始工具包之上；遇到本分支没有覆盖的模块（Mihomo netns、

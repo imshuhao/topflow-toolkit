@@ -70,3 +70,9 @@
 
 > 余量页顶部两个运营商标签只保留「联通」「电信」，其后的号码后四位已用不透明色块盖成
 > `联通 · ****` / `电信 · ****`。
+>
+> **出处**：余量查询的运营商协议参考
+> [`ChinaTelecomOperators/ChinaUnicom`](https://github.com/ChinaTelecomOperators/ChinaUnicom)、
+> [`ChinaTelecomOperators/ChinaTelecom`](https://github.com/ChinaTelecomOperators/ChinaTelecom)、
+> [`margrop/telecom-phone-device-id-tools`](https://github.com/margrop/telecom-phone-device-id-tools)；
+> 见仓库根目录 [`NOTICE.md`](../NOTICE.md)。
