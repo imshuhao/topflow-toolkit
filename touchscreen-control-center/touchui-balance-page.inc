@@ -56,7 +56,7 @@ static int create_balance_page(lv_obj_t *top)
         destroy_balance_page();
         return 0;
     }
-    /* tab 要放「联通 ·2603」，18px 会挤，降到 16px（换字体后要重新居中） */
+    /* tab 要放「联通 ·****」，18px 会挤，降到 16px（换字体后要重新居中） */
     for (i = 0; i < BALANCE_CARD_COUNT; i++) {
         if (balance_tab_labels[i] && ui_font_small &&
             real_obj_set_style_text_font)

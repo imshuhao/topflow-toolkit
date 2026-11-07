@@ -143,7 +143,7 @@ static void balance_carrier_name(const char *label, char *out, size_t size)
     out[n] = '\0';
 }
 
-/* tab 文案：「联通 ·2603」；数据未到时回落成固定运营商名 */
+/* tab 文案：「联通 ·****」；数据未到时回落成固定运营商名 */
 static void balance_tab_text(const struct balance_status *status, int index,
                              char *out, size_t size)
 {
