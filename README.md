@@ -509,6 +509,7 @@ sh /data/local/mwan3-tuning/recover.sh --verify                          # 若�
 | **原作者 / 上游** | [@imshuhao](https://github.com/imshuhao) · [imshuhao/topflow-toolkit](https://github.com/imshuhao/topflow-toolkit) |
 | 本 fork | [shizongrengkou/topflow-toolkit](https://github.com/shizongrengkou/topflow-toolkit) |
 | PR | [#2](https://github.com/imshuhao/topflow-toolkit/pull/2) |
+| 余量相关上游许可 | [ChinaUnicom](https://github.com/ChinaTelecomOperators/ChinaUnicom) / [ChinaTelecom](https://github.com/ChinaTelecomOperators/ChinaTelecom) = **GPL-3.0**；[telecom-phone-device-id-tools](https://github.com/margrop/telecom-phone-device-id-tools) = **MIT**（本公开分支未分发其余量代码，见 [`NOTICE.md`](NOTICE.md)） |
 | 出处清单 | [`NOTICE.md`](NOTICE.md) |
 
 本分支的所有改动都建立在上游作者的原始工具包之上；遇到本分支没有覆盖的模块（Mihomo netns、
