@@ -10,7 +10,7 @@
 | WebSSH 原作 | [`o8oo8o/WebSSH`](https://github.com/o8oo8o/WebSSH) | GoWebSSH（MIT，Copyright © 2021 o8oo8o） |
 | 面板 MOD | [`kanoqwq/WebSSH-u60pro`](https://github.com/kanoqwq/WebSSH-u60pro) | U60Pro / TopFlow 向改版；本机交叉编译基于此 |
 | 设备工具包上游 | [`imshuhao/topflow-toolkit`](https://github.com/imshuhao/topflow-toolkit) | 本 fork 所基于的 TopFlow 改机工具包（MIT） |
-| 本目录 | 本分支 `webssh/` | B20：ubus 兼容层、三卡 `/api/modems`、`start.sh` / rc.local 安装器 |
+| 本目录 | 本分支 `webssh/` | B20：ubus 兼容、三卡 `/api/modems`、余量授信 `/api/balance/*`、`start.sh` / rc.local |
 
 二进制与前端构建步骤见 [`BUILD.md`](BUILD.md)。实机纪要见 [`docs/WEBSSH-DEPLOY-2026-10-27.md`](../docs/WEBSSH-DEPLOY-2026-10-27.md)。
 
@@ -18,7 +18,8 @@
 
 - `patches/gossh/app/service/ubus_compat.go`：B20 上 `get_wwandst` / `get_wwaniface` 缺 `subid` 会失败 → 白名单兼容 + 9460 兜底  
 - `patches/gossh/app/service/modems.go`（及测试）：`GET /api/modems` 三卡（x75 / v3e2 / v3e1）  
-- `patches/Empty.vue.diff`：仪表盘顶部三卡卡片等前端差量  
+- `patches/gossh/app/service/balance_*.go` + `main.go.balance-routes.diff`：余量 status + 联通/电信授信（JWT 组）  
+- `patches/Empty.vue.diff`：仪表盘三卡；`Empty.balance.vue.fragment`：余量五行 + 授信面板  
 - `start.sh` + `install-rc-local.sh`：busybox 无 `-d`、必须 `-ConfigDir /data/webssh`，只绑 `192.168.0.1`
 
 ## 设备落点

@@ -67,7 +67,17 @@ pidfile_alive() {
 }
 
 mihomo_process() {
-    ps | grep -F '/data/mihomo/mihomo ' | grep -v grep >/dev/null 2>&1
+    # /proc cmdline is authoritative; do not match mihomo-netns.sh / smart.
+    for _d in /proc/[0-9]*; do
+        [ -r "$_d/cmdline" ] || continue
+        _cmd=$(tr '\0' ' ' < "$_d/cmdline" 2>/dev/null || true)
+        case "$_cmd" in
+            "/data/mihomo/mihomo"|"/data/mihomo/mihomo "*)
+                return 0
+                ;;
+        esac
+    done
+    return 1
 }
 
 mihomo_running() {
@@ -286,6 +296,8 @@ status_json() {
     _dhcp_dns=0
     dhcp_has '6,192.168.0.1' && _dhcp_dns=1
     dhcp_has '3,192.168.0.254' && _dhcp_mihomo=1
+    _dhcp_mihomo_dns=0
+    dhcp_has '6,192.168.0.254' && _dhcp_mihomo_dns=1
 
     if [ "$_tun" -eq 1 ]; then
         _tun_addr="$(ip -o -4 addr show sbtun0 2>/dev/null | awk '{print $4; exit}')"
@@ -321,15 +333,85 @@ status_json() {
         else
             _state=starting
         fi
-    elif [ "$_mihomo" -eq 1 ]; then
+    elif [ "$_mihomo" -eq 1 ] || [ "$_dhcp_mihomo" -eq 1 ]; then
         _engine=mihomo
-        _state=mihomo_active
+        if [ "$_mihomo" -eq 1 ]; then
+            _state=mihomo_active
+        else
+            # DHCP already on 0.254 but binary missing — broken rollback / mid-start.
+            _state=mihomo_down
+            _capture_ok=0
+        fi
+        # Align proxy-page fields with sing-box mode: version / RSS / traffic / plane.
+        _pid="$(ps w 2>/dev/null | awk '/\/data\/mihomo\/mihomo / && !/awk/ {print $1; exit}')"
+        if [ -n "$_pid" ] && [ -r "/proc/$_pid/status" ]; then
+            _rss="$(awk '/^VmRSS:/ {print $2; exit}' "/proc/$_pid/status" 2>/dev/null || echo 0)"
+        fi
+        case "$_rss" in ''|*[!0-9]*) _rss=0 ;; esac
+        _mjson="$(curl -s -m 3 http://192.168.0.254:9999/version 2>/dev/null || true)"
+        _mver="$(printf '%s' "$_mjson" | jsonfilter -e '@.version' 2>/dev/null || true)"
+        if [ -n "$_mver" ]; then
+            _version="mihomo $_mver"
+            _api=1
+        fi
+        if [ "$_api" -eq 1 ]; then
+            _mode="$(curl -s -m 3 http://192.168.0.254:9999/configs 2>/dev/null \
+                | jsonfilter -e '@.mode' 2>/dev/null || true)"
+            _conn="$(curl -s -m 3 http://192.168.0.254:9999/connections 2>/dev/null || true)"
+            if [ -n "$_conn" ]; then
+                _rx="$(printf '%s' "$_conn" | jsonfilter -e '@.downloadTotal' 2>/dev/null || true)"
+                _tx="$(printf '%s' "$_conn" | jsonfilter -e '@.uploadTotal' 2>/dev/null || true)"
+            fi
+        fi
+        [ -n "$_mode" ] || _mode="unknown"
+        case "$_rx" in ''|*[!0-9]*) _rx=0 ;; esac
+        case "$_tx" in ''|*[!0-9]*) _tx=0 ;; esac
+        _inbound=netns
+        _capture_plane=netns
+        _capture_iface=mihomo
+        if [ "$_mihomo" -eq 1 ] && [ "$_api" -eq 1 ] && [ -n "$_pid" ]; then
+            _capture_ok=1
+        else
+            _capture_ok=0
+        fi
+        # DHCP "ok" for the active engine: mihomo expects 0.254.
+        if [ "$_dhcp_mihomo" -eq 1 ] && [ "$_dhcp_mihomo_dns" -eq 1 ]; then
+            _dhcp_gw=1
+            _dhcp_dns=1
+        else
+            _dhcp_gw=0
+            _dhcp_dns=0
+        fi
+        # mihomo counterparts of 订阅 / 看门狗 / keeper (not sing-box paths).
+        _providers="$(ls /data/mihomo/proxies/*.yaml 2>/dev/null | wc -l | tr -d ' ')"
+        case "$_providers" in ''|*[!0-9]*) _providers=0 ;; esac
+        _watchdog=0
+        if /etc/init.d/mihomo-netns enabled >/dev/null 2>&1; then
+            _watchdog=1
+        elif ps | grep -F 'mihomo-netns-autostart.sh' | grep -v grep >/dev/null 2>&1; then
+            _watchdog=1
+        fi
+        _keeper=0
+        if ps | grep -F '/data/mihomo/dhcp-keeper.sh' | grep -v grep >/dev/null 2>&1; then
+            _keeper=1
+        elif [ -f /tmp/mihomo-dhcp-keeper.pid ]; then
+            _kp="$(cat /tmp/mihomo-dhcp-keeper.pid 2>/dev/null || true)"
+            if [ -n "$_kp" ] && kill -0 "$_kp" 2>/dev/null; then
+                _kcmd="$(tr '\0' ' ' <"/proc/$_kp/cmdline" 2>/dev/null || true)"
+                # Stale pidfile sometimes points at a hung `mihomo-netns.sh start`.
+                case "$_kcmd" in
+                    *mihomo-netns.sh*) ;;
+                    *) _keeper=1 ;;
+                esac
+            fi
+        fi
+        UI_URL="http://192.168.0.254:9999/ui/"
     elif [ "$_manual" -eq 1 ]; then
         _state=stopped_manual
     fi
 
     _dhcp_text="$(dhcp_list | sed 's/ / · /g')"
-    mgr_log "status state=${_state:-unknown} pid=$_pid api=$_api inbound=$_inbound capture_ok=$_capture_ok"
+    mgr_log "status state=${_state:-unknown} pid=$_pid api=$_api inbound=$_inbound capture_ok=$_capture_ok engine=$_engine"
 
     json_init
     json_add_boolean ok 1
@@ -541,16 +623,22 @@ cmd_wan_mode_status() {
     _tw="$(printf '%s\n' "$_out" | sed -n 's/^tcp_weights=//p' | head -1)"
     _uw="$(printf '%s\n' "$_out" | sed -n 's/^udp_weights=//p' | head -1)"
     _deg="$(printf '%s\n' "$_out" | sed -n 's/^degraded=//p' | head -1)"
+    _ovf="$(printf '%s\n' "$_out" | sed -n 's/^overflow=//p' | head -1)"
+    _tstate="$(printf '%s\n' "$_out" | sed -n 's/^tcp_state=//p' | head -1)"
+    _ustate="$(printf '%s\n' "$_out" | sed -n 's/^udp_state=//p' | head -1)"
+    _tlive="$(printf '%s\n' "$_out" | sed -n 's/^tcp_live=//p' | head -1)"
+    _ulive="$(printf '%s\n' "$_out" | sed -n 's/^udp_live=//p' | head -1)"
     [ -n "$_preset" ] || _preset=unknown
     [ -n "$_mode" ] || _mode=unknown
     [ -n "$_quality" ] || _quality=0
     [ -n "$_bias" ] || _bias=0
+    [ -n "$_ovf" ] || _ovf=0
     # Touch UI shows these strings raw — use 5G/4G#1/4G#2 so "mwan4" is not
     # read as a phantom 4th modem.
     _tw_ui=$(wan_iface_pretty "$_tw")
     _uw_ui=$(wan_iface_pretty "$_uw")
     _deg_ui=$(wan_iface_pretty "$_deg")
-    mgr_log "wan-mode-status preset=$_preset mode=$_mode q=$_quality deg=$_deg"
+    mgr_log "wan-mode-status preset=$_preset mode=$_mode q=$_quality deg=$_deg ovf=$_ovf tcp=$_tstate/$_tlive udp=$_ustate/$_ulive"
     json_init
     json_add_boolean ok 1
     json_add_string message "ok"
@@ -563,6 +651,11 @@ cmd_wan_mode_status() {
     json_add_string tcp_weights "$_tw_ui"
     json_add_string udp_weights "$_uw_ui"
     json_add_string degraded "$_deg_ui"
+    json_add_string overflow "$_ovf"
+    json_add_string tcp_state "$_tstate"
+    json_add_string udp_state "$_ustate"
+    json_add_string tcp_live "$_tlive"
+    json_add_string udp_live "$_ulive"
     json_dump
 }
 
@@ -570,8 +663,9 @@ cmd_wan_mode_set() {
     _id="${1:-}"
     case "$_id" in
     auto|shared|game) ;;
+    custom) ;;
     *)
-        json_result 0 "非法分流预设" "want auto|shared"
+        json_result 0 "非法分流预设" "want auto|shared|game|custom"
         return
         ;;
     esac
@@ -580,10 +674,34 @@ cmd_wan_mode_set() {
         return
     fi
     mgr_log "wan-mode-set begin id=$_id"
-    _out="$("$WANBAL_SH" preset-set "$_id" 2>&1)" || {
-        json_result 0 "切换分流失败" "$(clip "$_out")"
-        return
-    }
+    case "$_id" in
+    custom)
+        _tcp="${2:-}"
+        _udp="${3:-}"
+        _ovf="${4:-0}"
+        case "$_ovf" in
+        0|1) ;;
+        *)
+            json_result 0 "非法溢出开关" "want 0|1"
+            return
+            ;;
+        esac
+        if [ -z "$_tcp" ] || [ -z "$_udp" ]; then
+            json_result 0 "分流卡列表为空" "want TCP_LIST UDP_LIST"
+            return
+        fi
+        _out="$("$WANBAL_SH" preset-set custom "$_tcp" "$_udp" "$_ovf" 2>&1)" || {
+            json_result 0 "切换分流失败" "$(clip "$_out")"
+            return
+        }
+        ;;
+    *)
+        _out="$("$WANBAL_SH" preset-set "$_id" 2>&1)" || {
+            json_result 0 "切换分流失败" "$(clip "$_out")"
+            return
+        }
+        ;;
+    esac
     _preset="$(printf '%s\n' "$_out" | sed -n 's/^preset=//p' | head -1)"
     [ "$_preset" = "$_id" ] || {
         json_result 0 "切换未确认" "$(clip "$_out")"
@@ -593,6 +711,7 @@ cmd_wan_mode_set() {
     auto) _msg="已切换：自动质量分流" ;;
     shared) _msg="已切换：三卡共池" ;;
     game) _msg="已切换：游戏硬绑（遗留）" ;;
+    custom) _msg="已切换：手动选池" ;;
     esac
     mgr_log "wan-mode-set ok id=$_id"
     json_init
@@ -612,9 +731,10 @@ case "${1:-status}" in
     switchover) cmd_switchover ;;
     rollback) cmd_rollback ;;
     wan-mode-status) cmd_wan_mode_status ;;
-    wan-mode-set) cmd_wan_mode_set "${2:-}" ;;
+    wan-mode-set) cmd_wan_mode_set "${2:-}" "${3:-}" "${4:-}" "${5:-}" ;;
     *)
         echo "usage: $0 {status|service-start|service-stop|service-restart|config-check|logs|switchover|rollback|wan-mode-status|wan-mode-set}" >&2
+        echo "       $0 wan-mode-set {auto|shared|game|custom <tcp_list> <udp_list> <overflow 0|1>}" >&2
         exit 2
         ;;
 esac

@@ -38,6 +38,37 @@ clear_track() {
 	mkdir -p "$MWAN3TRACK_DIR"
 }
 
+# Keep only the named cards in WORK; the rest model offline/unrouted WANs.
+seed_pool_only() {
+	cat > "$SINGBOX_STATE/wan-balance.pool.k" <<'EOF'
+zte_mwan2 rmnet_data0 6 12 10.0.0.1
+zte_mwan3 V3E1net0 3 13 10.0.0.2
+zte_mwan4 V3E2net0 3 14 10.0.0.3
+EOF
+	: > "$SINGBOX_STATE/wan-balance.pool"
+	while read -r _if _rest; do
+		for _w in "$@"; do
+			if [ "$_if" = "$_w" ]; then
+				echo "$_if $_rest" >> "$SINGBOX_STATE/wan-balance.pool"
+				break
+			fi
+		done
+	done < "$SINGBOX_STATE/wan-balance.pool.k"
+	rm -f "$SINGBOX_STATE/wan-balance.pool.k"
+}
+
+custom_conf() {
+	cat > "$SINGBOX_WANBAL_CONF" <<EOF
+PRESET=custom
+MODE=proto
+QUALITY=0
+BIAS=0
+TCP_POOL=$1
+UDP_POOL=$2
+OVERFLOW=$3
+EOF
+}
+
 fail=0
 assert_grep() {
 	_pat=$1
@@ -243,6 +274,154 @@ EOF
 rm -f "$SINGBOX_STATE/wan-balance.qstate"
 sh "$SCRIPT" render >/dev/null
 assert_grep 'zte_mwan2:weak' "$SINGBOX_STATE/wan-balance.quality" "RSRP -110 marks 5G weak"
+
+# =====================================================================
+# PRESET=custom — manual pools (day-6 schedule)
+# =====================================================================
+
+# --- invalid CLI input: rc != 0 and the conf is left untouched ---
+seed_pool
+clear_track
+sh "$SCRIPT" preset-set auto >/dev/null
+_conf_before=$(md5sum "$SINGBOX_WANBAL_CONF" | cut -d' ' -f1)
+check_bad_custom() {
+	_msg=$1
+	shift
+	if sh "$SCRIPT" preset-set custom "$@" >/dev/null 2>&1; then
+		echo "FAIL custom should reject $_msg"
+		fail=1
+	else
+		echo "PASS custom rejects $_msg"
+	fi
+}
+check_bad_custom "both lists empty" "" ""
+check_bad_custom "missing lists" 
+check_bad_custom "unknown card" zte_mwan2 zte_mwan9
+check_bad_custom "empty TCP side" "" zte_mwan3
+check_bad_custom "blank tokens only" ",," zte_mwan3
+check_bad_custom "OVERFLOW=2" zte_mwan2 zte_mwan3 2
+_conf_after=$(md5sum "$SINGBOX_WANBAL_CONF" | cut -d' ' -f1)
+if [ "$_conf_before" = "$_conf_after" ]; then
+	echo "PASS invalid custom leaves conf untouched"
+else
+	echo "FAIL invalid custom rewrote conf"
+	fail=1
+fi
+assert_grep '^PRESET=auto' "$SINGBOX_WANBAL_CONF" "conf still PRESET=auto after rejects"
+assert_no_grep '^OVERFLOW=' "$SINGBOX_WANBAL_CONF" "conf got no OVERFLOW line after rejects"
+
+# --- normal custom through the CLI: aliases, spaces and duplicates ---
+seed_pool
+clear_track
+sh "$SCRIPT" preset-set custom '5G' ' 4G#1 , 4g#1 ' 0 > "$TMP/custom.out"
+assert_grep '^preset=custom' "$TMP/custom.out" "preset-set custom prints preset=custom"
+assert_grep '^PRESET=custom' "$SINGBOX_WANBAL_CONF" "conf PRESET=custom"
+assert_grep '^MODE=proto' "$SINGBOX_WANBAL_CONF" "conf MODE=proto"
+assert_grep '^QUALITY=0' "$SINGBOX_WANBAL_CONF" "conf QUALITY=0"
+assert_grep '^BIAS=0' "$SINGBOX_WANBAL_CONF" "conf BIAS=0"
+assert_grep '^TCP_POOL=zte_mwan2$' "$SINGBOX_WANBAL_CONF" "alias 5G normalised"
+assert_grep '^UDP_POOL=zte_mwan3$' "$SINGBOX_WANBAL_CONF" "alias 4G#1 deduped to one card"
+assert_grep '^OVERFLOW=0' "$SINGBOX_WANBAL_CONF" "conf OVERFLOW=0"
+sh "$SCRIPT" render > "$TMP/custom.out"
+assert_grep 'mode=proto' "$TMP/custom.out" "custom mode banner"
+assert_grep 'ovf=0' "$SINGBOX_STATE/wan-balance.nft" "custom spec carries overflow"
+assert_grep 'meta l4proto tcp counter meta mark set' "$SINGBOX_STATE/wan-balance.nft" "custom TCP single 5G full bucket"
+assert_grep 'meta l4proto udp counter meta mark set' "$SINGBOX_STATE/wan-balance.nft" "custom UDP single 4G#1 full bucket"
+assert_no_grep 'meta l4proto (tcp|udp) jhash' "$SINGBOX_STATE/wan-balance.nft" "custom has no multi-bucket jhash"
+assert_no_grep 'counter drop' "$SINGBOX_STATE/wan-balance.nft" "custom healthy has no drop"
+_rc=$(wc -l < "$SINGBOX_STATE/wan-balance.rules" | tr -d ' ')
+if [ "$_rc" -eq 2 ]; then
+	echo "PASS custom two cards → 2 ip rules"
+else
+	echo "FAIL custom rule count=$_rc want 2"
+	fail=1
+fi
+assert_grep '1990 0x01000000 12' "$SINGBOX_STATE/wan-balance.rules" "custom 5G rule pref 1990"
+assert_grep '1991 0x02000000 13' "$SINGBOX_STATE/wan-balance.rules" "custom 4G#1 rule pref 1991"
+
+# --- preset-get exposes the new keys ---
+sh "$SCRIPT" preset-get > "$TMP/pget_custom.out"
+assert_grep '^overflow=0$' "$TMP/pget_custom.out" "preset-get overflow"
+assert_grep '^tcp_state=ok$' "$TMP/pget_custom.out" "preset-get tcp_state ok"
+assert_grep '^udp_state=ok$' "$TMP/pget_custom.out" "preset-get udp_state ok"
+assert_grep '^tcp_live=1$' "$TMP/pget_custom.out" "preset-get tcp_live"
+assert_grep '^udp_live=1$' "$TMP/pget_custom.out" "preset-get udp_live"
+
+# --- custom is never quality-weighted ---
+seed_pool
+clear_track
+seed_track zte_mwan2 900 0
+seed_track zte_mwan3 40 0
+seed_track zte_mwan4 40 0
+custom_conf zte_mwan2 zte_mwan3,zte_mwan4 0
+rm -f "$SINGBOX_STATE/wan-balance.qstate"
+sh "$SCRIPT" render >/dev/null
+assert_grep 'meta l4proto tcp counter meta mark set' "$SINGBOX_STATE/wan-balance.nft" "custom TCP ignores weak 5G metrics"
+assert_grep 'meta l4proto udp jhash.*0-49' "$SINGBOX_STATE/wan-balance.nft" "custom UDP keeps flat 50/50"
+if [ -s "$SINGBOX_STATE/wan-balance.quality" ]; then
+	echo "FAIL custom must not write quality detail"
+	fail=1
+else
+	echo "PASS custom writes no quality detail"
+fi
+
+# --- selected card offline, OVERFLOW=0: protocol is dropped ---
+seed_pool_only zte_mwan2
+clear_track
+custom_conf zte_mwan2 zte_mwan3 0
+sh "$SCRIPT" render > "$TMP/blocked.out"
+assert_grep 'meta l4proto udp counter drop' "$SINGBOX_STATE/wan-balance.nft" "overflow=0 drops the empty UDP side"
+assert_no_grep 'meta l4proto udp (jhash|counter meta mark set)' "$SINGBOX_STATE/wan-balance.nft" "blocked UDP has no hash rule"
+assert_no_grep 'zte_mwan3' "$SINGBOX_STATE/wan-balance.rules" "blocked UDP adds no rule for the offline card"
+assert_grep 'meta l4proto tcp counter meta mark set' "$SINGBOX_STATE/wan-balance.nft" "TCP stays on the live 5G card"
+_drop_ln=$(grep -n 'meta l4proto udp counter drop' "$SINGBOX_STATE/wan-balance.nft" | cut -d: -f1)
+_priv_ln=$(grep -n 'ip daddr {' "$SINGBOX_STATE/wan-balance.nft" | cut -d: -f1)
+if [ "$_drop_ln" -gt "$_priv_ln" ]; then
+	echo "PASS drop rule sits after the private-address return"
+else
+	echo "FAIL drop rule line=$_drop_ln private return line=$_priv_ln"
+	fail=1
+fi
+sh "$SCRIPT" preset-get > "$TMP/pget_blocked.out"
+assert_grep '^udp_state=blocked$' "$TMP/pget_blocked.out" "preset-get udp_state blocked"
+assert_grep '^udp_live=0$' "$TMP/pget_blocked.out" "preset-get udp_live 0"
+assert_grep '^tcp_state=ok$' "$TMP/pget_blocked.out" "preset-get tcp_state ok while udp blocked"
+assert_grep '^tcp_live=1$' "$TMP/pget_blocked.out" "preset-get tcp_live 1"
+
+# --- same offline card, OVERFLOW=1: shared spill instead of drop ---
+seed_pool_only zte_mwan2
+clear_track
+custom_conf zte_mwan2 zte_mwan3 1
+sh "$SCRIPT" render > "$TMP/spill.out"
+assert_no_grep 'counter drop' "$SINGBOX_STATE/wan-balance.nft" "overflow=1 never drops"
+assert_grep 'meta l4proto udp counter meta mark set' "$SINGBOX_STATE/wan-balance.nft" "overflow=1 UDP spills to the shared pool"
+sh "$SCRIPT" preset-get > "$TMP/pget_spill.out"
+assert_grep '^overflow=1$' "$TMP/pget_spill.out" "preset-get reports overflow=1"
+assert_grep '^udp_state=spill$' "$TMP/pget_spill.out" "preset-get udp_state spill"
+assert_grep '^udp_live=1$' "$TMP/pget_spill.out" "preset-get udp_live 1 on spill"
+
+# --- partial: UDP selects 4G#1+4G#2, only 4G#1 is live ---
+seed_pool_only zte_mwan2 zte_mwan3
+clear_track
+custom_conf zte_mwan2 zte_mwan3,zte_mwan4 0
+sh "$SCRIPT" render > "$TMP/partial.out"
+assert_grep 'meta l4proto udp counter meta mark set' "$SINGBOX_STATE/wan-balance.nft" "partial UDP uses the single live card"
+assert_no_grep 'meta l4proto udp jhash' "$SINGBOX_STATE/wan-balance.nft" "partial UDP has no second bucket"
+assert_no_grep 'counter drop' "$SINGBOX_STATE/wan-balance.nft" "partial UDP is not dropped"
+assert_no_grep 'zte_mwan4' "$SINGBOX_STATE/wan-balance.rules" "partial drops no rule for the offline card"
+sh "$SCRIPT" preset-get > "$TMP/pget_partial.out"
+assert_grep '^udp_state=partial$' "$TMP/pget_partial.out" "preset-get udp_state partial"
+assert_grep '^udp_live=1$' "$TMP/pget_partial.out" "preset-get udp_live 1 of 2"
+assert_grep '^tcp_state=ok$' "$TMP/pget_partial.out" "preset-get tcp_state ok"
+
+# --- non-custom: overflow=0 and the four state rows are empty ---
+sh "$SCRIPT" preset-set auto >/dev/null
+sh "$SCRIPT" preset-get > "$TMP/pget_auto_keys.out"
+assert_grep '^overflow=0$' "$TMP/pget_auto_keys.out" "auto reports overflow=0"
+assert_grep '^tcp_state=$' "$TMP/pget_auto_keys.out" "auto tcp_state empty"
+assert_grep '^udp_state=$' "$TMP/pget_auto_keys.out" "auto udp_state empty"
+assert_grep '^tcp_live=$' "$TMP/pget_auto_keys.out" "auto tcp_live empty"
+assert_grep '^udp_live=$' "$TMP/pget_auto_keys.out" "auto udp_live empty"
 
 if [ "$fail" -ne 0 ]; then
 	echo "--- shared.out ---"; cat "$TMP/shared.out" || true

@@ -98,9 +98,13 @@ adb shell 'sh /data/local/balance/balance-watch.sh once'
 
 ## 授信 / 凭证从哪来
 
-公开分支的 [`webssh/`](../webssh/) **不含**余量授信 API。填写 `accounts.json` 可用：
+推荐：WebSSH 仪表盘 `http://192.168.0.1:8899/app/` →「余量查询」→「授信」
+（联通短信 / 电信滑块+短信）。后端补丁在 [`webssh/patches/`](../webssh/patches/)，
+按 [`webssh/BUILD.md`](../webssh/BUILD.md) 重编后才有 `/api/balance/*`。
+
+也可以：
 
 - 联通：抓包 `token_online`，或跑 `unicom-sms-login.py`
-- 电信：营业厅服务密码 + 短信授权得到的 `device_uid`（可参考上游 DeviceId 工具流程）
+- 电信：营业厅服务密码 + 短信授权 `device_uid`
 
 **不要**再启退役的 `balance-auth` / `:8898`。
