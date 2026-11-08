@@ -5,33 +5,21 @@
 **相对上游原作的本分支变化：**
 
 - 控制中心里原「Mihomo」入口改为 **Sing-box**（启停 / 数据面 / 流量）；
-- 新增 **「分流」**：「自动·质量」与「三卡共池」（见 [`../singbox/README.md`](../singbox/README.md)）；
-- `start.sh` 启动原厂 UI 时注入 **`TZ=CST-8`**（只影响触屏显示北京时间；系统墙钟仍须为真实 UTC，见根 README「UTC 墙钟」与 [`../docs/TIMEZONE-FIX-2026-09-08.md`](../docs/TIMEZONE-FIX-2026-09-08.md)）。
-
-首页增加一个“控制中心”入口：
+- 九宫格：网络 / 代理 / 分流 / 余量 / 设备 / 充电 / 主题 + 空位（见根 README §3）；
+- 分流触屏含「自动·质量」「三卡共池」与「自定义」草稿视图——**本公开支线后端暂未放行 `custom`**；
+- `start.sh` 注入 **`TZ=CST-8`**（只影响触屏显示；墙钟须真实 UTC，见根 README）。
 
 ```text
-控制中心
-├── 网络仪表
-│   └── 三基带详情、趋势、流量、SIM 与模块
-├── Sing-box
-├── 分流
-│   ├── 自动·质量（质量加权共池 + 软偏置；弱网可溢出）
-│   └── 三卡共池（强制共池；仍按质量降权）
-└── 设备状态
-    ├── 系统与全局流量
-    ├── 散热与风扇曲线
-    ├── Wi-Fi 功率
-    └── 一键诊断
+控制中心（3×3）
+├── 网络 / 代理 / 分流
+├── 余量 / 设备 / 充电
+└── 主题 / 空位 / 空位
 ```
 
-状态数据每秒从本机 `zwrt-datad /state` 读取；散热、Wi-Fi 和刷新操作只向 `/control`
-发送固定 action 与受约束参数。Sing-box 操作只调用
-`/data/singbox-manager/singbox-manager.sh` 的固定子命令（status / service-start /
-service-stop / service-restart）。Sing-box 页展示**数据面**（`capture_ok` /
-`inbound_mode`）：现网 eBPF `socket_assign` 下无 `sbtun0` 为正常，角标为
-`eBPF 模式`；回滚到 TUN 档时仍显示 `TUN 模式`。大陆四家运营商统一显示为完整中文名；
-其余超出可用宽度的运营商、地址和身份字段使用仅溢出时启用的循环滚动标签。
+网络·设备·充电·散热·Wi-Fi 读 `zwrt-datad /state`；代理读 `singbox-manager.sh`；
+分流读 `wan-mode-status`；余量读 `/data/local/balance/status.json`。
+写操作：`POST /control`（风扇/液冷/Wi-Fi）或固定 `singbox-manager` / `balance-watch` 子命令。
+Sing-box 页展示数据面（eBPF 下无 `sbtun0` 为正常）。细节以根 README 为准。
 
 ## 兼容性
 

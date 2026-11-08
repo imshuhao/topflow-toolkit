@@ -73,7 +73,7 @@
 | **余量**<br>顶部切「联通 / 电信」，下面固定五行：通用余、已跳、已免、共免、跳点。每行大字是主数值，小字补充总量/已用/今日跳点等。只显示本地缓存；底栏「更新于 / 下次」，点「立即刷新」才现采一次。号码后四位已遮成 `****`。 | ![余量](docs/screenshots/touchscreen/29-balance.png) |
 | **充电**<br>顶部大字是充电功率（`W`），状态行给「充电中 · 输入 x.xx V」；中间电量条 + 距满百分比；下方六行明细（输入电压 / 充电电流 / 充电功率 / 电池电压 / 电池电流 / 电池温度）。未插电时功率归零、前三行显 `--`。 | ![充电](docs/screenshots/touchscreen/30-charge.png) |
 | **分流 · 自动·质量**<br>三段预设 + TCP / UDP 有效权重条。质量降权时顶部用警告色点名被降权的卡（如图中的 `4G#2`），权重按实测延迟/丢包动态算。 | ![分流 · 自动·质量](docs/screenshots/touchscreen/29-wanbal.png) |
-| **分流 · 自定义**<br>TCP / UDP 各三个卡位 chip 手动选池 + 「允许溢出」开关，底部「应用分流」才下发；未应用前只改草稿。该档关闭质量降权与软偏置，卡位按你选的走。 | ![分流 · 自定义](docs/screenshots/touchscreen/24-wanbal-custom.png) |
+| **分流 · 自定义**（触屏草稿视图）<br>TCP / UDP 各三个卡位 chip + 「允许溢出」；点「应用分流」才下发。**本公开支线的 `singbox-manager` / `wan-balance` 尚未放行 `custom`**，点应用会失败——以 §4 为准。 | ![分流 · 自定义](docs/screenshots/touchscreen/24-wanbal-custom.png) |
 | **风扇曲线 · 原厂**<br>只读阶梯表：44 / 48 / 53 °C 对应 30% / 50% / 70%，降到「触发温度 − 4 °C」才退档（滞回），80 °C 满速保护与模式无关。 | ![风扇曲线 · 原厂](docs/screenshots/touchscreen/33-cooling-factory.png) |
 | **风扇曲线 · 自定义**<br>可编辑 2–8 个控制点，温度严格递增、转速非递减；「新增 / 删除」调点数，「恢复默认」只重置草稿，「应用」前显示当前温度预计输出。 | ![风扇曲线 · 自定义](docs/screenshots/touchscreen/33-cooling-custom.png) |
 
@@ -88,7 +88,7 @@
 - **数据**：设备 `/data/local/balance/status.json`（定时约 15 分钟写一次）
 - **源码**：[`balance/`](balance/)（查询器 + 采样脚本 + 凭证模板；**不含**真实账号）
 - **触屏**：只读快照；「立即刷新」跑固定脚本 `balance-watch.sh once`
-- **授信**：WebSSH `http://192.168.0.1:8899/app/` 里联通短信 / 电信滑块+短信（不要再启退役的 `:8898`）
+- **授信**：联通短信 / 电信滑块+短信写进 `accounts.json`。公开分支的 [`webssh/`](webssh/) **不含**余量授信 API；退役的 `balance-auth` / `:8898` 不要再启。凭证可用 `unicom-sms-login.py`、抓包，或自建授信页。
 
 登录与查询流程对齐开源项目公开协议（自行重写，非拷贝其脚本）：
 
@@ -146,10 +146,13 @@ B20 原厂 NTP/NITZ 路径会把「本地 UTC+8」写进 Unix 墙钟 → TLS/代
 
 数据与写的边界：
 
-- **读**：所有页面只读本机 `zwrt-datad` 的 `GET /state`（单个 64 KiB 缓冲），UI 线程不 `fopen` 设备文件。
-- **写**：启停、风扇、Wi-Fi、分流等统一 `POST /control`，只发固定 action 与受约束参数；
-  UI 不拼 shell、不直写 sysfs，参数在 UI 线程夹到合法区间后由 worker 线程下发。
-- **失败**：只回显「设备控制接口执行失败」，不静默重试、不猜测上一次状态。
+- **读（按页）**：网络 / 设备 / 充电 / 散热 / Wi-Fi 功率走本机 `zwrt-datad` 的 `GET /state`（单个 64 KiB 缓冲）；
+  代理状态走 `singbox-manager.sh status`；分流走 `wan-mode-status`；余量走
+  `/data/local/balance/status.json`。UI 线程不直接 `fopen` 设备节点。
+- **写**：风扇 / 液冷 / Wi-Fi 等走 `POST /control`（固定 action + 受约束参数）；
+  代理启停与分流预设走 `singbox-manager.sh`；余量刷新只 `exec` 固定路径的
+  `balance-watch.sh once`。不拼 shell、不直写 sysfs。
+- **失败**：只回显固定失败文案，不静默重试、不猜测上一次状态。
 
 ### 3.1 入口与菜单
 
@@ -177,11 +180,9 @@ B20 原厂 NTP/NITZ 路径会把「本地 UTC+8」写进 Unix 墙钟 → TLS/代
 原有功能（启停 / 重启 / 核心切换 / 分流预设 / 风扇 / Wi-Fi 功率…）在改版中一律保留，
 不做「看着好看但按钮变少」的减法。落地情况逐项见 [3.3](#33-从原型到设备的落地状态)。
 
-原型源文件在工作仓库的 `docs/design/touchui-prototype-2026-11-07/`
-（`index.html` 单文件原型 + `colors.md` 色板表；另有冷却曲线的日夜两张对照图）。
-本公开分支**不附带**该 HTML —— 它是设计工具的导出快照，含大量与实现无关的噪声，
-且随设计工具改版会整文件重排，不便于按 diff 审阅。因此下面把可复用的**版面常量与色值**
-直接抄录在此，移植时无需先拿到原型文件。
+原型落在 [`docs/design/touchui-prototype-2026-11-07/`](docs/design/touchui-prototype-2026-11-07/)
+（`index.html` + `colors.md` + 冷却曲线日夜对照图）。下面把可复用的**版面常量与色值**
+再抄录一份，方便对照实现；移植时以本表与触屏源码为准。
 
 **几何**
 
@@ -252,7 +253,7 @@ B20 原厂 NTP/NITZ 路径会把「本地 UTC+8」写进 Unix 墙钟 → TLS/代
 | 设备四 tab | ✅ | ✅ 已实现 |
 | 系统 tab 字段 | 内核 / 版本 / 负载 / 内存 / 存储 / 电池 | ✅ 九行全有（内核、发行版、运行时间、负载 · CPU、内存、存储、电量、电池温度、电池电压） |
 | 风扇曲线二级页 | ✅ | ✅ 已实现 |
-| 分流 | 自动·质量 / 三卡共池 / 自定义 | ✅ 三段都有；自定义的**后端**见 §4 的说明 |
+| 分流 | 自动·质量 / 三卡共池 / 自定义 | 触屏三段都有；**本公开支线后端只放行 auto/shared**（见 §4） |
 | 余量页 | ✅ | ✅ 已实现（联通/电信五行 + 手动刷新；数据 [`balance/`](balance/)） |
 | 充电页 | ✅ | ✅ 已实现（功率 / 电量条 / 六行明细） |
 
@@ -392,21 +393,12 @@ zig cc -target aarch64-linux-musl -shared -fPIC -Os -Wall -Wextra -Werror \
 | --- | --- |
 | **自动·质量** | 共池 + 质量降权（mwan3 延迟/丢包，可选 5G 射频样本）+ TCP 偏 5G、UDP 偏 4G 的软偏置；弱网可溢出 |
 | **三卡共池** | 强制共池；仍质量降权；无软偏置 |
-| **自定义** | TCP / UDP 各钉一组卡位（至少各留一张）；**质量降权与软偏置均关闭**；`overflow` 决定所选卡全下线时的行为（见下） |
+| **自定义** | 触屏有草稿视图；**本公开支线后端未放行**（见下） |
 
-触屏「自定义」是**手动选池的草稿视图**：点分段只切视图并播种草稿，
-「应用分流」才把池掩码下发（`wan-mode-set custom <tcp_list> <udp_list> <overflow>`）。
-`game`（硬绑 TCP=5G、UDP=双 4G）仅 CLI 可用。
-
-- **溢出关（`overflow=0`）**：某协议选中的卡全部离线时，该协议**直接丢包**（fail closed），
-  不会偷偷漏到别的卡上。
-- **溢出开（`overflow=1`）**：该协议退回三卡共池（spill），可用性优先于固定卡位。
-
-> **前后端落地状态**：触屏有「自定义」入口，脚本侧 `preset-set custom …` 也已支持
-> 手动池。但**公开支线的管理后端是否已放行 `custom` 需以设备上的脚本为准**——
-> 若 `singbox-manager.sh` 的 `wan-mode-set` 仍只接受 `auto|shared|game`，
-> 点「应用分流」会返回失败，此时请以 `sh singbox/singbox-wan-balance.sh preset-list`
-> 与脚本本体为准，不要把这里当成已全栈上线。
+触屏「自定义」目前只能切视图、改草稿，**不能真正下发**。
+`singbox-manager.sh wan-mode-set` 与 `singbox-wan-balance.sh preset-set`
+只接受 `auto|shared|game`；点「应用分流」会失败。日常请用前两档。
+`game`（硬绑 TCP=5G、UDP=双 4G）仅 CLI。
 
 ```sh
 sh /data/sing-box/singbox-wan-balance.sh preset-set auto

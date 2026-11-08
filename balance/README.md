@@ -96,7 +96,11 @@ adb shell 'sh /data/local/balance/balance-watch.sh once'
 `/data/local/balance/balance-watch.sh once`（固定路径，凭证不上 argv）。  
 默认定时约 15 分钟。
 
-## 授信入口
+## 授信 / 凭证从哪来
 
-打开 WebSSH 仪表盘 `http://192.168.0.1:8899/app/` →「余量查询」→「授信」。  
+公开分支的 [`webssh/`](../webssh/) **不含**余量授信 API。填写 `accounts.json` 可用：
+
+- 联通：抓包 `token_online`，或跑 `unicom-sms-login.py`
+- 电信：营业厅服务密码 + 短信授权得到的 `device_uid`（可参考上游 DeviceId 工具流程）
+
 **不要**再启退役的 `balance-auth` / `:8898`。
