@@ -656,6 +656,7 @@ static void process_device_navigation(void)
     pending_device_view = 0;
     destroy_singbox_page();
     destroy_wanbal_page();
+    destroy_balance_page();
     destroy_charge_page();
     destroy_network_identity();
     destroy_network_detail();

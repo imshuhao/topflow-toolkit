@@ -85,6 +85,7 @@ static enum page_id message_page_for_action(int action)
     if (action == ACTION_WAN_MODE_AUTO || action == ACTION_WAN_MODE_SHARED ||
         action == ACTION_WAN_MODE_CUSTOM)
         return PAGE_WANBAL;
+    if (action == ACTION_BALANCE_REFRESH) return PAGE_BALANCE;
     return PAGE_DEVICE;
 }
 
@@ -92,6 +93,7 @@ static enum page_id message_page_for_page(enum page_id page)
 {
     if (page == PAGE_SINGBOX) return PAGE_SINGBOX;
     if (page == PAGE_WANBAL) return PAGE_WANBAL;
+    if (page == PAGE_BALANCE) return PAGE_BALANCE;
     if (page == PAGE_DEVICE || page == PAGE_COOLING_CURVE ||
         page == PAGE_DIAGNOSTICS) return PAGE_DEVICE;
     return PAGE_STOCK;
@@ -147,6 +149,18 @@ static void execute_action(int action, int action_band,
         if (!json_string(output, "message", message, sizeof(message)))
             safe_copy(message, sizeof(message), ok ? "分流已应用" : "操作失败");
         publish_message(action, ok, message);
+        return;
+    }
+    case ACTION_BALANCE_REFRESH: {
+        publish_message(action, 1, "正在刷新…");
+        if (run_balance_watch_once(output, sizeof(output)) != 0) {
+            publish_message(action, 0, "余量刷新失败");
+            return;
+        }
+        pthread_mutex_lock(&shared_lock);
+        force_balance_refresh = 1;
+        pthread_mutex_unlock(&shared_lock);
+        publish_message(action, 1, "余量已刷新");
         return;
     }
     case ACTION_FAN_FACTORY:
@@ -299,7 +313,7 @@ static void *status_worker(void *unused)
     int old_valid = 0, cached_valid = 0, consecutive_failures = 0;
     int network_cached_valid = 0, network_failures = 0;
     long long next_fast_poll = 0, next_full_poll = 0, next_network_poll = 0;
-    long long next_wifi_poll = 0;
+    long long next_wifi_poll = 0, next_balance_poll = 0;
     long long last_full_sample_ms = 0;
     memset(&cached, 0, sizeof(cached));
     memset(&network_cached, 0, sizeof(network_cached));
@@ -437,6 +451,27 @@ static void *status_worker(void *unused)
                 pthread_mutex_unlock(&shared_lock);
             }
             next_wifi_poll = monotonic_millis() + WIFI_STATUS_INTERVAL_MS;
+        }
+        if (force_balance_refresh || now >= next_balance_poll) {
+            struct balance_status balance_fresh;
+            static struct balance_status balance_cached;
+            static int balance_cached_valid, balance_failures;
+            if (collect_balance_status(&balance_fresh)) {
+                balance_cached = balance_fresh;
+                balance_cached_valid = 1;
+                balance_failures = 0;
+            } else if (balance_cached_valid) {
+                balance_failures++;
+                if (balance_failures >= STATUS_STALE_FAILURES)
+                    balance_cached.stale = 1;
+            }
+            pthread_mutex_lock(&shared_lock);
+            if (balance_cached_valid) shared_balance_status = balance_cached;
+            else memset(&shared_balance_status, 0, sizeof(shared_balance_status));
+            shared_balance_generation++;
+            force_balance_refresh = 0;
+            pthread_mutex_unlock(&shared_lock);
+            next_balance_poll = monotonic_millis() + BALANCE_STATUS_INTERVAL_MS;
         }
         usleep(50000);
     }

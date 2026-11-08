@@ -1,0 +1,135 @@
+:root {
+  color-scheme: light dark;
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: #10151d;
+  color: #edf2f7;
+}
+
+main {
+  width: min(100% - 2rem, 42rem);
+  margin: 2rem auto;
+}
+
+section {
+  margin: 1rem 0;
+  padding: 1.25rem;
+  border: 1px solid #344154;
+  border-radius: 0.75rem;
+  background: #18202b;
+}
+
+h1,
+h2 {
+  margin-top: 0;
+}
+
+h2 {
+  font-size: 1.05rem;
+}
+
+label,
+input,
+button {
+  display: block;
+  width: 100%;
+}
+
+label {
+  margin: 0.75rem 0 0.35rem;
+}
+
+input,
+button {
+  min-height: 2.75rem;
+  padding: 0.65rem;
+  border-radius: 0.45rem;
+  font: inherit;
+}
+
+input {
+  border: 1px solid #617087;
+  background: #0f151e;
+  color: inherit;
+}
+
+button {
+  margin-top: 0.75rem;
+  border: 0;
+  background: #59a7ff;
+  color: #07111f;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+button:disabled,
+input:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.notice {
+  color: #ffd68a;
+}
+
+#challenge-images {
+  position: relative;
+  max-width: 100%;
+  overflow: hidden;
+}
+
+#background {
+  display: block;
+  max-width: 100%;
+  height: auto;
+}
+
+#slider-piece {
+  position: absolute;
+  left: 0;
+  top: 0;
+  max-width: none;
+  height: auto;
+}
+
+#result {
+  display: block;
+  min-height: 2rem;
+  margin: 1rem 0;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+  color: #b8e6c5;
+}
+
+#device-id-section {
+  margin-top: 1rem;
+  padding: 1.25rem;
+  border: 1px solid #4a6;
+  border-radius: 0.75rem;
+  background: #1a2b1a;
+}
+
+#device-id-value {
+  display: block;
+  font-family: ui-monospace, monospace;
+  font-size: 0.95rem;
+  word-break: break-all;
+  user-select: all;
+  padding: 0.75rem;
+  background: #0f1a0f;
+  border-radius: 0.45rem;
+  margin: 0.75rem 0;
+  color: #7ee787;
+}
+
+#copy-button {
+  background: #4a6;
+  color: #fff;
+}

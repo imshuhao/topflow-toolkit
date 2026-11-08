@@ -1,0 +1,12 @@
+﻿accounts.json
+telecom-login-*.json
+unicom-token.last.json
+status.json
+history.jsonl
+watch.log
+balance-query.arm64
+balance-auth.arm64
+*.exe
+_localtest/
+__pycache__/
+*.pyc

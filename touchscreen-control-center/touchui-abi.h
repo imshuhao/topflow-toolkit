@@ -82,10 +82,13 @@ typedef void (*chart_refresh_fn)(lv_obj_t *chart);
 
 #define SINGBOX_MANAGER "/data/singbox-manager/singbox-manager.sh"
 #define SINGBOX_PIDFILE "/data/sing-box/state/sing-box.pid"
+#define BALANCE_STATUS_PATH "/data/local/balance/status.json"
+#define BALANCE_WATCH_SH "/data/local/balance/balance-watch.sh"
 #define FAST_STATUS_INTERVAL_MS 1000LL
 #define FULL_STATUS_INTERVAL_MS 5000LL
 #define NETWORK_STATUS_INTERVAL_MS 1000LL
 #define WIFI_STATUS_INTERVAL_MS 5000LL
+#define BALANCE_STATUS_INTERVAL_MS 15000LL
 #define STATUS_STALE_FAILURES 3
 #define NETWORK_MODEM_COUNT 3
 #define NETWORK_HTTP_MAX 65536

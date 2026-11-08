@@ -47,7 +47,8 @@
 | --- | --- |
 | [墙钟与时区](#1-utc-墙钟--utc8-显示) | 系统时钟必须是真实 UTC；北京时间只用 `CST-8` 显示 |
 | [Sing-box](#2-sing-box-宿主栈) | Clash→sing-box 转换、eBPF/`socket_assign`、零直连档、部署与自愈脚本 |
-| [触屏控制中心](#3-触屏控制中心) | OpenDesign 原型整页还原（九宫格 + 共用状态栏 + 日夜令牌）、充电页、设备四 tab、风扇曲线页 |
+| [触屏控制中心](#3-触屏控制中心) | OpenDesign 原型整页还原（九宫格 + 共用状态栏 + 日夜令牌）、余量 / 充电页、设备四 tab、风扇曲线页 |
+| [余量查询](#余量查询联通--电信) | 联通/电信套餐余量与跳点；源码在 [`balance/`](balance/)，触屏只读快照 |
 | [分流](#4-分流质量感知三卡选卡) | 自动·质量 / 三卡共池 / 自定义选池；弱网可溢出，不做协议硬绑死 |
 | [无线 ADB](#5-无线-adb-wrapper-v5) | TCP `15555` + USB 三合一；**永不隐藏 functionfs** |
 | [WebSSH](#6-webssh-局域网终端) | `8899` + 内置 sshd `22622`；B20 ubus/三卡补丁 |
@@ -68,7 +69,8 @@
 
 | 页面 | 画面 |
 | --- | --- |
-| **九宫格首页**<br>网络 / 代理 / 分流 · 空位 / 设备 / 充电 · 主题 / 两个空位；代理格右上角是运行状态圆点，设备格徽标汇总未读短信、流量限额与温控异常。底部一行是代理状态 + 模式 + 在线卡数。（截图里中排左格若仍写「余量」，以现网空位为准，待重拍。） | ![九宫格首页](docs/screenshots/touchscreen/34-cc-mint.png) |
+| **九宫格首页**<br>网络 / 代理 / 分流 · 余量 / 设备 / 充电 · 主题 / 两个空位；代理格右上角是运行状态圆点，设备格徽标汇总未读短信、流量限额与温控异常。底部一行是代理状态 + 模式 + 在线卡数。 | ![九宫格首页](docs/screenshots/touchscreen/34-cc-mint.png) |
+| **余量**<br>顶部切「联通 / 电信」，下面固定五行：通用余、已跳、已免、共免、跳点。每行大字是主数值，小字补充总量/已用/今日跳点等。只显示本地缓存；底栏「更新于 / 下次」，点「立即刷新」才现采一次。号码后四位已遮成 `****`。 | ![余量](docs/screenshots/touchscreen/29-balance.png) |
 | **充电**<br>顶部大字是充电功率（`W`），状态行给「充电中 · 输入 x.xx V」；中间电量条 + 距满百分比；下方六行明细（输入电压 / 充电电流 / 充电功率 / 电池电压 / 电池电流 / 电池温度）。未插电时功率归零、前三行显 `--`。 | ![充电](docs/screenshots/touchscreen/30-charge.png) |
 | **分流 · 自动·质量**<br>三段预设 + TCP / UDP 有效权重条。质量降权时顶部用警告色点名被降权的卡（如图中的 `4G#2`），权重按实测延迟/丢包动态算。 | ![分流 · 自动·质量](docs/screenshots/touchscreen/29-wanbal.png) |
 | **分流 · 自定义**<br>TCP / UDP 各三个卡位 chip 手动选池 + 「允许溢出」开关，底部「应用分流」才下发；未应用前只改草稿。该档关闭质量降权与软偏置，卡位按你选的走。 | ![分流 · 自定义](docs/screenshots/touchscreen/24-wanbal-custom.png) |
@@ -78,6 +80,25 @@
 设备页「散热」tab（风扇四键 + 液冷三档 + 曲线入口）见
 [`33-device-cool.png`](docs/screenshots/touchscreen/33-device-cool.png)，
 应用曲线的二次确认见 [`33-cooling-confirm.png`](docs/screenshots/touchscreen/33-cooling-confirm.png)。
+
+### 余量查询（联通 / 电信）
+
+本机查运营商套餐还剩多少、相对上次多跳了多少，触屏「余量」页直接看。
+
+- **数据**：设备 `/data/local/balance/status.json`（定时约 15 分钟写一次）
+- **源码**：[`balance/`](balance/)（查询器 + 采样脚本 + 凭证模板；**不含**真实账号）
+- **触屏**：只读快照；「立即刷新」跑固定脚本 `balance-watch.sh once`
+- **授信**：WebSSH `http://192.168.0.1:8899/app/` 里联通短信 / 电信滑块+短信（不要再启退役的 `:8898`）
+
+登录与查询流程对齐开源项目公开协议（自行重写，非拷贝其脚本）：
+
+| 用途 | 上游 | 许可 |
+| --- | --- | --- |
+| 联通 | [ChinaUnicom](https://github.com/ChinaTelecomOperators/ChinaUnicom) | GPL-3.0 |
+| 电信 | [ChinaTelecom](https://github.com/ChinaTelecomOperators/ChinaTelecom) | GPL-3.0 |
+| 电信 DeviceId | [telecom-phone-device-id-tools](https://github.com/margrop/telecom-phone-device-id-tools) | MIT |
+
+安装与五行口径见 [`balance/README.md`](balance/README.md)；许可边界见 [`NOTICE.md`](NOTICE.md)。
 
 ---
 
@@ -137,7 +158,7 @@ B20 原厂 NTP/NITZ 路径会把「本地 UTC+8」写进 Unix 墙钟 → TLS/代
 ├── 网络     三卡信号、QCI、AMBR 与实时速率
 ├── 代理     Sing-box 服务、数据面、流量与启停/重启 + 引擎切换
 ├── 分流     自动·质量 / 三卡共池 / 自定义选池
-├── 空位     虚线占位，不可点
+├── 余量     联通 / 电信余量与跳点（本地缓存）
 ├── 设备     系统 · 流量 · 散热 · 无线 · 一键诊断
 ├── 充电     充电功率、电量条、六行明细
 ├── 主题     日 / 夜即时切换，落 /data/touchscreen-control-center/theme
@@ -177,7 +198,7 @@ B20 原厂 NTP/NITZ 路径会把「本地 UTC+8」写进 Unix 墙钟 → TLS/代
 | 1 | 网络 | 三卡总览、总速率、实时趋势 |
 | 2 | 代理 | 运行状态圆点 + 核心/内存/数据面/DHCP + 流量 + 启停/重启 + 引擎切换 |
 | 3 | 分流 | 三段预设 + TCP/UDP 有效权重（或自定义选池草稿） |
-| 4 | 空位 | 虚线占位 |
+| 4 | 余量 | 联通/电信余量与跳点（本地缓存），见 [余量查询](#余量查询联通--电信) |
 | 5 | 设备 | 四个 tab，见 [3.4](#34-设备页四个-tab) |
 | 6 | 充电 | 充电功率、电量条、明细 |
 | 7 | 主题 | 日/夜切换，落 `/data/touchscreen-control-center/theme` |
@@ -232,7 +253,12 @@ B20 原厂 NTP/NITZ 路径会把「本地 UTC+8」写进 Unix 墙钟 → TLS/代
 | 系统 tab 字段 | 内核 / 版本 / 负载 / 内存 / 存储 / 电池 | ✅ 九行全有（内核、发行版、运行时间、负载 · CPU、内存、存储、电量、电池温度、电池电压） |
 | 风扇曲线二级页 | ✅ | ✅ 已实现 |
 | 分流 | 自动·质量 / 三卡共池 / 自定义 | ✅ 三段都有；自定义的**后端**见 §4 的说明 |
+| 余量页 | ✅ | ✅ 已实现（联通/电信五行 + 手动刷新；数据 [`balance/`](balance/)） |
 | 充电页 | ✅ | ✅ 已实现（功率 / 电量条 / 六行明细） |
+
+**余量页**只读 `/data/local/balance/status.json`。联通、电信共用界面，切 tab 只换数据；
+五行是通用余、已跳、已免、共免、跳点。底栏写更新时间；「立即刷新」跑本地采样脚本。
+采集与安装见 [`balance/README.md`](balance/README.md)。
 
 **充电页**按 `zwrt-datad` 的 `battery` 段显示充电功率（`charger_uv × charger_ua`）、
 电量进度条与六行明细；未插电时功率归零、输入侧三行显示 `--`，不会拿残留采样算出假功率。
@@ -255,7 +281,7 @@ B20 原厂 NTP/NITZ 路径会把「本地 UTC+8」写进 Unix 墙钟 → TLS/代
   电池（电量、电池温度、电池电压）。内核与发行版由 worker 读 `/proc` 与
   `openwrt_release` 缓存后填，不是每帧现读。
   读取失败时统一显示 `--`，绝不沿用上一次的数字 —— 否则会出现「拔卡后仍显示在线」这种假状态。
-- **流量**是设备侧的会话 / 日 / 月 / 累计计数，不是运营商账单。
+- **流量**是设备侧的会话 / 日 / 月 / 累计计数，不是运营商账单；运营商侧用量看「余量」页。
   实时列单独标「当前会话」，切 tab 不会清零累计值。
 - **散热**：风扇四键 **原厂 / 自定义 / 常开 / 常闭**
   - 原厂 = 交回内核温控（44 / 48 / 53 °C 三档）；
@@ -456,7 +482,8 @@ sh singbox/tests/test_wan_balance_render.sh
 | 路径 | 角色 |
 | --- | --- |
 | `timekeeper/` | UTC 墙钟 + HTTP Date 守卫 |
-| `touchscreen-control-center/` | 触屏控制中心（九宫格首页 / 网络 / 代理 / 分流 / 设备四 tab / 充电 / 主题 / 风扇曲线） |
+| `touchscreen-control-center/` | 触屏控制中心（九宫格首页 / 网络 / 代理 / 分流 / 余量 / 设备四 tab / 充电 / 主题 / 风扇曲线） |
+| `balance/` | 联通/电信余量查询与跳点采样（源码；凭证自备） |
 | `singbox/`、`singbox-manager/` | 宿主栈与管理入口 |
 | `adb-wifi/` | 无线 ADB wrapper v5 |
 | `webssh/` | WebSSH 部署包装 + B20 补丁（第三方见 NOTICE） |
@@ -486,7 +513,8 @@ sh singbox/tests/test_wan_balance_render.sh
 | 私人交接全文（现场事故流水、主机名、家庭域名） | 只保留可复用的技术结论，已抽象成 `docs/*2026-*.md` |
 | 订阅链接、UUID、节点凭据、机场域名 | 属于账号资产，一律不带 |
 | `singbox/generated/`（生成的 config 与 provider） | 由 `convert.py` 本地生成，含订阅派生数据 |
-| 设备侧二进制（`sing-box`、`webssh`、`touchui-hook.so`、原厂厂商库） | 不分发厂商或第三方二进制，请自行编译/下载 |
+| 余量真实凭证（`accounts.json`、token、服务密码、DeviceId） | 只留 `accounts.json.example`；源码在 [`balance/`](balance/) |
+| 设备侧二进制（`sing-box`、`webssh`、`touchui-hook.so`、`balance-query.arm64`、原厂厂商库） | 不分发厂商或第三方二进制，请自行编译/下载 |
 
 示例地址统一用出厂网关 `192.168.0.1`；DDNS 占位为 `example.invalid`；
 截图是脱敏后的产物，仓库不含未遮挡原图。
@@ -509,7 +537,7 @@ sh /data/local/mwan3-tuning/recover.sh --verify                          # 若�
 | **原作者 / 上游** | [@imshuhao](https://github.com/imshuhao) · [imshuhao/topflow-toolkit](https://github.com/imshuhao/topflow-toolkit) |
 | 本 fork | [shizongrengkou/topflow-toolkit](https://github.com/shizongrengkou/topflow-toolkit) |
 | PR | [#2](https://github.com/imshuhao/topflow-toolkit/pull/2) |
-| 余量相关上游许可 | [ChinaUnicom](https://github.com/ChinaTelecomOperators/ChinaUnicom) / [ChinaTelecom](https://github.com/ChinaTelecomOperators/ChinaTelecom) = **GPL-3.0**；[telecom-phone-device-id-tools](https://github.com/margrop/telecom-phone-device-id-tools) = **MIT**（本公开分支未分发其余量代码，见 [`NOTICE.md`](NOTICE.md)） |
+| 余量查询 | [`balance/`](balance/)（自行重写）；协议参考 [ChinaUnicom](https://github.com/ChinaTelecomOperators/ChinaUnicom) / [ChinaTelecom](https://github.com/ChinaTelecomOperators/ChinaTelecom)（GPL-3.0）、[telecom-phone-device-id-tools](https://github.com/margrop/telecom-phone-device-id-tools)（MIT） |
 | 出处清单 | [`NOTICE.md`](NOTICE.md) |
 
 本分支的所有改动都建立在上游作者的原始工具包之上；遇到本分支没有覆盖的模块（Mihomo netns、

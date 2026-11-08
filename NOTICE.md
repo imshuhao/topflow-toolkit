@@ -8,7 +8,7 @@
 | --- | --- | --- |
 | **[topflow-toolkit](https://github.com/imshuhao/topflow-toolkit)** | **[@imshuhao](https://github.com/imshuhao)** 及 contributors | MIT（见 [`LICENSE`](LICENSE)，`Copyright (c) 2026 imshuhao contributors`） |
 
-本分支在原作之上增加 B20 现场改动（Sing-box、触控、分流、无线 ADB、弱网黑匣子、OTA 冻结、WebSSH 部署包装等）。  
+本分支在原作之上增加 B20 现场改动（Sing-box、触控、分流、无线 ADB、弱网黑匣子、OTA 冻结、WebSSH 部署包装、余量查询等）。  
 **未改动的模块**（如 `mihomo-netns`、`luci-admin`、`web-full-menu` 等）版权与说明仍以上游为准；请优先阅读上游 README：  
 https://github.com/imshuhao/topflow-toolkit/blob/main/README.md
 
@@ -20,16 +20,19 @@ https://github.com/imshuhao/topflow-toolkit/blob/main/README.md
 | WebSSH-u60pro MOD | [`kanoqwq/WebSSH-u60pro`](https://github.com/kanoqwq/WebSSH-u60pro) | B20 补丁在 `webssh/patches/` | 从其仓库 |
 | sing-box | [`SagerNet/sing-box`](https://github.com/SagerNet/sing-box) 等 | 设备侧二进制不随本 fork 分发；配置生成见 `singbox/` | 从其上游 |
 
-## 余量查询相关上游（协议说明）
+## 余量查询：协议参考与本仓库实现
 
-现场曾参考下列项目的**登录/查询流程说明**做联通·电信余量能力；本公开分支**不包含**
-其余量采集源码、凭证或触屏「余量」页，也**没有**拷贝下列仓库中的脚本。
+本分支公开 [`balance/`](balance/)（查询器 / 采样脚本）与触屏「余量」页展示逻辑。  
+实现为**自行重写**，对齐下列项目公开的登录/查询流程，**不是**对其脚本的直接拷贝分发；  
+因此本 MIT fork **不必**因引用这些上游而整仓改成 GPL。凭证与真实号码**不**随仓库分发。
 
-| 上游 | SPDX | 对本公开分支的含义 |
-| --- | --- | --- |
-| [`ChinaTelecomOperators/ChinaUnicom`](https://github.com/ChinaTelecomOperators/ChinaUnicom) | **GPL-3.0** | 仓库根目录 `LICENSE` 为 GPLv3。GPL 约束的是**发行其衍生作品**时须以兼容条款提供对应源码并保留声明；仅参考其公开协议/流程、自行重写，**不**要求把本 MIT fork 整仓改成 GPL。当前公开仓未分发其代码或衍生件。 |
-| [`ChinaTelecomOperators/ChinaTelecom`](https://github.com/ChinaTelecomOperators/ChinaTelecom) | **GPL-3.0** | 同上。另：该仓现网公开树基本只有 `LICENSE` + `README`（维护说明称原作者失联），`README` 另有「24 小时学习后删除」等免责文案，与 GPLv3 再分发条款并存时以 SPDX/`LICENSE` 文件为准做出处标注。 |
-| [`margrop/telecom-phone-device-id-tools`](https://github.com/margrop/telecom-phone-device-id-tools) | **MIT** | 若拷贝或发行其「实质性部分」，须在副本中保留其版权与许可声明（Copyright © 2026 margrop）。本公开分支未纳入该工具源码。 |
+| 用途 | 上游 | 许可 | 对本仓库的要求 |
+| --- | --- | --- | --- |
+| 联通短信登录 / `token_online`、流量包查询 | [`ChinaTelecomOperators/ChinaUnicom`](https://github.com/ChinaTelecomOperators/ChinaUnicom) | **GPL-3.0** | 未拷贝其源码时，GPL 不传染本仓；仍应标明出处。若日后并入其衍生代码，对应部分须按 GPL 提供源码与声明。 |
+| 电信登录与余量查询 | [`ChinaTelecomOperators/ChinaTelecom`](https://github.com/ChinaTelecomOperators/ChinaTelecom) | **GPL-3.0** | 同上。该仓现网公开树多为 `LICENSE` + `README`（维护说明称原作者失联）；`README` 另有「24 小时学习后删除」等免责文案，出处标注以 SPDX / `LICENSE` 为准。 |
+| 电信 DeviceId 短信授权（解 3006） | [`margrop/telecom-phone-device-id-tools`](https://github.com/margrop/telecom-phone-device-id-tools) | **MIT** | 字段口径对齐其公开说明；若拷贝其「实质性部分」源码，须保留 Copyright © 2026 margrop 与 MIT 许可声明。本仓实现为自行重写并在源码注释中标明。 |
+
+触屏五行展示与跳点差分属本分支原创。细节见 [`balance/README.md`](balance/README.md)。
 
 再分发时请同时保留本文件、根目录 `LICENSE`，以及各第三方要求的版权声明。
 

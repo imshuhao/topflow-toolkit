@@ -21,6 +21,7 @@ enum action_id {
     ACTION_WAN_MODE_AUTO,
     ACTION_WAN_MODE_SHARED,
     ACTION_WAN_MODE_CUSTOM,
+    ACTION_BALANCE_REFRESH,
     ACTION_ENGINE_SWITCHOVER,
     ACTION_ENGINE_ROLLBACK
 };
@@ -33,6 +34,7 @@ enum page_id {
     PAGE_NETWORK_IDENTITY,
     PAGE_SINGBOX,
     PAGE_WANBAL,
+    PAGE_BALANCE,
     PAGE_DEVICE,
     PAGE_COOLING_CURVE,
     PAGE_DIAGNOSTICS,
@@ -110,6 +112,41 @@ struct wanbal_status {
     char tcp_live[8];
     char udp_live[8];
     char updated[16];
+};
+
+#define BALANCE_CARD_COUNT 2
+
+struct balance_card_status {
+    int ok;
+    char id[40];
+    char operator_name[16];
+    char label[40];
+    char phone_tail[8];
+    char error[96];
+    long general_remain_kb;
+    long general_total_kb;
+    long general_used_kb;
+    long directed_remain_kb;
+    long directed_total_kb;
+    long directed_used_kb;
+    int directed_unlimited;
+    long directed_unlimit_used_kb;
+    long jump_delta_kb;
+    long free_delta_kb;
+    long jump_today_kb;
+};
+
+/* Carrier package remain / jump-point snapshot from /data/local/balance. */
+struct balance_status {
+    int valid;
+    int stale;
+    int ok;
+    int card_count;
+    int interval_sec;
+    char updated[16];   /* 本次查询 HH:MM:SS */
+    char next[16];      /* 下次查询 HH:MM:SS */
+    char error[96];
+    struct balance_card_status cards[BALANCE_CARD_COUNT];
 };
 
 struct modem_status {

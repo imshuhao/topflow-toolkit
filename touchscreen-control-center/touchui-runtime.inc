@@ -93,6 +93,7 @@ static void process_theme_rebuild(void)
     /* 子页（含其确认弹层）全部按新配色重建 */
     destroy_singbox_page();
     destroy_wanbal_page();
+    destroy_balance_page();
     destroy_charge_page();
     destroy_network_identity();
     destroy_network_detail();
@@ -103,6 +104,7 @@ static void process_theme_rebuild(void)
     force_refresh = 1;
     force_network_refresh = 1;
     force_wanbal_refresh = 1;
+    force_balance_refresh = 1;
     shared_generation++;
     pthread_mutex_unlock(&shared_lock);
 }
@@ -396,7 +398,7 @@ static int create_menu_page(lv_obj_t *top)
     menu_home_strong_cached = 0;
     menu_home_strong_valid = 0;
 
-    /* 九宫格：网络/代理/分流 · 空位/设备/充电 · 主题/空位/空位
+    /* 九宫格：网络/代理/分流 · 余量/设备/充电 · 主题/空位/空位
      * 每格 = 24px accent 线稿图标（y 18）+ 16px 名称（y 54）。 */
     tile = make_menu_tile(menu_page, "网络", glyph_network_24, 0, 0,
                           open_network_clicked, 0, NULL);
@@ -416,9 +418,9 @@ static int create_menu_page(lv_obj_t *top)
     if (!tile) return 0;
     menu_tiles[idx++] = tile;
 
-    tile = make_menu_tile(menu_page, "空位", glyph_plus_24, 0, 1, NULL, 1, NULL);
+    tile = make_menu_tile(menu_page, "余量", glyph_balance_24, 0, 1,
+                          open_balance_clicked, 0, NULL);
     if (!tile) return 0;
-    menu_tile_empty[idx] = 1;
     menu_tiles[idx++] = tile;
 
     tile = make_menu_tile(menu_page, "设备", glyph_device_24, 1, 1,
@@ -579,6 +581,7 @@ uint32_t lv_timer_handler(void)
         process_device_navigation();
         refresh_ui();
         refresh_wanbal_ui();
+        refresh_balance_ui();
         refresh_charge_ui();
         refresh_network_ui();
         refresh_wifi_power_ui();

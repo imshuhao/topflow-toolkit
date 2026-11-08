@@ -17,6 +17,8 @@
 #include "touchui-singbox-page.inc"
 #include "touchui-wanbal.inc"
 #include "touchui-wanbal-page.inc"
+#include "touchui-balance.inc"
+#include "touchui-balance-page.inc"
 #include "touchui-charge-page.inc"
 #include "touchui-network.inc"
 #include "touchui-stock-speed.inc"

@@ -50,20 +50,22 @@
 
 ## OpenDesign 还原页（2026-11）
 
-按 OpenDesign 原型整页还原的触屏页：九宫格控制中心、充电、分流、风扇曲线。
+按 OpenDesign 原型整页还原的触屏页：九宫格控制中心、余量、充电、分流、风扇曲线。
 
-| 九宫格控制中心 | 充电 |
+| 九宫格控制中心 | 余量（号码后四位已遮挡） |
 | --- | --- |
-| ![九宫格控制中心](screenshots/touchscreen/34-cc-mint.png) | ![充电](screenshots/touchscreen/30-charge.png) |
+| ![九宫格控制中心](screenshots/touchscreen/34-cc-mint.png) | ![余量](screenshots/touchscreen/29-balance.png) |
 
-| 分流 · 自动·质量 | 分流 · 自定义 |
+| 充电 | 分流 · 自动·质量 |
 | --- | --- |
-| ![分流自动质量](screenshots/touchscreen/29-wanbal.png) | ![分流自定义](screenshots/touchscreen/24-wanbal-custom.png) |
+| ![充电](screenshots/touchscreen/30-charge.png) | ![分流自动质量](screenshots/touchscreen/29-wanbal.png) |
 
-| 风扇曲线 · 原厂阶梯 | 风扇曲线 · 自定义 |
+| 分流 · 自定义 | 风扇曲线 · 原厂阶梯 |
 | --- | --- |
-| ![风扇原厂曲线](screenshots/touchscreen/33-cooling-factory.png) | ![风扇自定义曲线](screenshots/touchscreen/33-cooling-custom.png) |
+| ![分流自定义](screenshots/touchscreen/24-wanbal-custom.png) | ![风扇原厂曲线](screenshots/touchscreen/33-cooling-factory.png) |
 
-| 风扇曲线 · 应用确认 | 设备 · 散热 |
+| 风扇曲线 · 自定义 | 风扇曲线 · 应用确认 |
 | --- | --- |
-| ![风扇曲线确认](screenshots/touchscreen/33-cooling-confirm.png) | ![设备散热](screenshots/touchscreen/33-device-cool.png) |
+| ![风扇自定义曲线](screenshots/touchscreen/33-cooling-custom.png) | ![风扇曲线确认](screenshots/touchscreen/33-cooling-confirm.png) |
+
+> 余量查询源码见 [`balance/`](../balance/)；协议出处与许可见 [`NOTICE.md`](../NOTICE.md)。
