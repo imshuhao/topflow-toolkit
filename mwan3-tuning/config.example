@@ -1,3 +1,13 @@
 # Root-owned shell assignments consumed by apply-rules.sh.
 TRACK_IPS='199.7.83.42 180.76.76.76 192.58.128.30'
-MIHOMO_SOURCE='192.168.11.11'
+MIHOMO_SOURCE='192.168.0.254'
+# mwan3 balanced policy weights for the three cellular WANs.
+# zte_mwan2 = rmnet_data0 (5G), zte_mwan3 = V3E1net0 (4G#1), zte_mwan4 = V3E2net0 (4G#2)
+WEIGHT_5G='6'
+WEIGHT_4G_1='3'
+WEIGHT_4G_2='3'
+# zte_mwan3 (V3E1net0) 时延毛刺余量最薄：实测尖峰 1281–1914ms，2026-09-15 曾 flap。
+# 单独放宽该口：回复时限 1→2s、失败时延阈值 1000→2000ms（恢复阈值 700 不动；
+# 只调 timeout 不够——quality 检查仍会把 ≥1000ms 的回复判失败轮）。
+TRACK_TIMEOUT_4G_1='2'
+TRACK_FAILURE_LATENCY_4G_1='2000'

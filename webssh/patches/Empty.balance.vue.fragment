@@ -1,0 +1,640 @@
+<!-- 余量查询 + 授信：插入 Empty.vue 的片段（从现网 WebSSH 抽出）
+应用步骤（对照 webssh/BUILD.md）：
+1) 模板：放在 dataReady 内容区靠前（三卡卡片之前），粘贴「TEMPLATE」段
+2) script setup：粘贴「SCRIPT」段（接口/状态/函数）；在仪表盘刷新成功后调用 fetchBalance()
+3) style：粘贴「STYLE」段
+4) 后端：复制 patches/gossh/app/service/balance_*.go，并在 main.go 的 JWT 组挂上
+   patches/gossh/main.go.balance-routes.diff 中的路由
+-->
+
+===== TEMPLATE =====
+      <!-- 余量（同源 /api/balance；单进程，无 :8898 旁路） -->
+      <div class="card balance-card">
+        <div class="card-header">
+          <h3 class="hd">余量查询</h3>
+          <div class="balance-head-actions">
+            <span class="balance-updated" v-if="balanceStatus?.updated">{{ balanceStatus.updated }}</span>
+            <button class="btn btn-primary" @click="fetchBalance" :disabled="balanceLoading">刷新</button>
+            <button class="btn btn-primary" @click="authOpen = !authOpen">
+              {{ authOpen ? '收起授信' : '授信' }}
+            </button>
+          </div>
+        </div>
+        <div class="card-content">
+          <div v-if="balanceError" class="balance-error">{{ balanceError }}</div>
+          <div v-else-if="!balanceCards.length" class="balance-empty">暂无余量数据</div>
+          <div v-else class="balance-grid">
+            <div
+              v-for="card in balanceCards"
+              :key="card.id"
+              :class="['balance-item', { bad: card.ok === false }]">
+              <div class="balance-item-head">
+                <span class="balance-label">{{ card.label || card.operator }}</span>
+                <span class="balance-phone">{{ card.phone || '-' }}</span>
+              </div>
+              <div class="balance-rows">
+                <div class="balance-row">
+                  <span>通用余</span>
+                  <strong>{{ fmtKB(card.general_remain_kb) }}</strong>
+                </div>
+                <div class="balance-row">
+                  <span>已跳</span>
+                  <strong>{{ fmtKB(card.general_used_kb) }}</strong>
+                </div>
+                <div class="balance-row">
+                  <span>已免</span>
+                  <strong>{{ fmtKB(card.free_delta_kb) }}</strong>
+                </div>
+                <div class="balance-row">
+                  <span>共免</span>
+                  <strong>
+                    {{ fmtKB(card.directed_used_kb) }}
+                    <em v-if="card.directed_unlimited" class="balance-unl"
+                      >无限{{ card.directed_unlimit_used_kb ? ' ' + fmtKB(card.directed_unlimit_used_kb) : '' }}</em
+                    >
+                  </strong>
+                </div>
+                <div class="balance-row">
+                  <span>跳点</span>
+                  <strong>
+                    {{ fmtKB(card.jump_delta_kb) }}
+                    <em v-if="card.jump_today_kb" class="balance-unl"
+                      >今日 {{ fmtKB(card.jump_today_kb) }}</em
+                    >
+                  </strong>
+                </div>
+              </div>
+              <div v-if="card.error" class="balance-card-err">{{ card.error }}</div>
+            </div>
+          </div>
+
+          <div v-if="authOpen" class="auth-panel">
+            <div class="auth-tabs">
+              <button
+                :class="['auth-tab', { active: authTab === 'unicom' }]"
+                @click="authTab = 'unicom'">联通</button>
+              <button
+                :class="['auth-tab', { active: authTab === 'telecom' }]"
+                @click="authTab = 'telecom'">电信</button>
+            </div>
+            <p class="auth-hint">偶发授信；凭证写入 accounts.json，由查询器读取。</p>
+            <div v-if="authTab === 'unicom'" class="auth-body">
+              <input v-model="uPhone" class="auth-input" placeholder="联通手机号" maxlength="11" />
+              <div class="auth-row">
+                <input v-model="uCode" class="auth-input" placeholder="短信验证码" />
+                <button class="btn btn-primary" @click="unicomSend" :disabled="authBusy">发码</button>
+                <button class="btn btn-primary" @click="unicomLogin" :disabled="authBusy">登录</button>
+              </div>
+            </div>
+            <div v-else class="auth-body">
+              <input v-model="tPhone" class="auth-input" placeholder="电信手机号" maxlength="11" />
+              <div class="auth-row">
+                <button class="btn btn-primary" @click="telecomChallenge" :disabled="authBusy">获取滑块</button>
+                <button class="btn btn-primary" @click="telecomRefresh" :disabled="authBusy || !tSession">刷新</button>
+              </div>
+              <div v-if="tChallenge" class="slider-box">
+                <div class="slider-stage">
+                  <img :src="tBgSrc" class="slider-bg" alt="" @load="onSliderBgLoad" />
+                  <img
+                    :src="tPieceSrc"
+                    class="slider-piece"
+                    :style="{ left: tPieceLeft + 'px', width: tPieceWidth + 'px' }"
+                    alt=""
+                    @load="onSliderPieceLoad" />
+                </div>
+                <input
+                  type="range"
+                  class="slider-range"
+                  :max="tTravel"
+                  :value="tDistance"
+                  :disabled="!tSession"
+                  @pointerdown="onSliderDragStart"
+                  @input="onSliderInput" />
+                <div class="auth-row">
+                  <button class="btn btn-primary" @click="telecomSendSMS" :disabled="authBusy || !tDragged">发短信</button>
+                  <input v-model="tSms" class="auth-input" placeholder="短信验证码" :disabled="!tSmsReady" />
+                  <button class="btn btn-primary" @click="telecomSubmitSMS" :disabled="authBusy || !tSmsReady">提交</button>
+                </div>
+                <div class="auth-row">
+                  <input
+                    v-model="tPass"
+                    class="auth-input"
+                    type="password"
+                    placeholder="服务密码"
+                    :disabled="!tDeviceId" />
+                  <button class="btn btn-primary" @click="telecomComplete" :disabled="authBusy || !tDeviceId">完成</button>
+                </div>
+                <div v-if="tDeviceId" class="auth-device">DeviceId {{ tDeviceId }}</div>
+              </div>
+            </div>
+            <div v-if="authMsg" class="auth-msg">{{ authMsg }}</div>
+          </div>
+        </div>
+      </div>
+
+
+===== SCRIPT =====
+// —— 余量 / 授信（同源 WebSSH，无旁路进程）——
+interface BalanceCard {
+  id: string;
+  phone?: string;
+  operator?: string;
+  label?: string;
+  ok?: boolean;
+  error?: string;
+  general_remain_kb?: number;
+  general_used_kb?: number;
+  directed_remain_kb?: number;
+  directed_used_kb?: number;
+  directed_unlimited?: boolean;
+  directed_unlimit_used_kb?: number;
+  free_delta_kb?: number;
+  jump_delta_kb?: number;
+  jump_today_kb?: number;
+}
+interface BalanceStatus {
+  ok?: boolean;
+  updated?: string;
+  updated_at?: string;
+  cards?: BalanceCard[];
+  error?: string;
+}
+
+const balanceStatus = ref<BalanceStatus | null>(null);
+const balanceLoading = ref(false);
+const balanceError = ref<string | null>(null);
+const balanceCards = computed(() => balanceStatus.value?.cards || []);
+const authOpen = ref(false);
+const authTab = ref<'unicom' | 'telecom'>('unicom');
+const authBusy = ref(false);
+const authMsg = ref('');
+const uPhone = ref('');
+const uCode = ref('');
+const tPhone = ref('');
+const tSession = ref('');
+const tSms = ref('');
+const tPass = ref('');
+const tDeviceId = ref('');
+const tSmsReady = ref(false);
+const tChallenge = ref<any>(null);
+const tBgSrc = ref('');
+const tPieceSrc = ref('');
+const tTravel = ref(0);
+const tDistance = ref(0);
+const tPieceLeft = ref(0);
+const tPieceWidth = ref(0);
+const tDragged = ref(false);
+const tDragStart = ref<number | null>(null);
+const tDragEnd = ref<number | null>(null);
+const tDragTrack = ref<string[]>([]);
+let tPieceNatural = { w: 0, h: 0, x: 0 };
+let tBgNatural = 0;
+let tBgClient = 0;
+
+function fmtKB(kb?: number | null): string {
+  if (kb == null || Number.isNaN(Number(kb))) return '-';
+  const n = Number(kb);
+  if (n >= 1024 * 1024 * 1024) return (n / 1073741824).toFixed(2) + ' TB';
+  if (n >= 1024 * 1024) return (n / 1048576).toFixed(2) + ' GB';
+  if (n >= 1024) return (n / 1024).toFixed(2) + ' MB';
+  return n.toFixed(0) + ' KB';
+}
+
+function balanceApiError(e: any): string {
+  return (
+    e?.response?.data?.error ||
+    e?.response?.data?.msg ||
+    e?.message ||
+    '请求失败'
+  );
+}
+
+async function fetchBalance() {
+  balanceLoading.value = true;
+  try {
+    const res = await axios.get<BalanceStatus>('/api/balance/status', {
+      headers: { 'Cache-Control': 'no-store' },
+    });
+    balanceStatus.value = res.data || null;
+    balanceError.value =
+      res.data?.ok === false ? res.data.error || '尚无数据' : null;
+  } catch (e: any) {
+    balanceError.value = balanceApiError(e);
+  } finally {
+    balanceLoading.value = false;
+  }
+}
+
+function imageSource(value: string): string {
+  if (/^[A-Za-z0-9+/=\r\n]+$/.test(value)) {
+    return `data:image/png;base64,${value}`;
+  }
+  if (/^data:image\/(png|jpeg);base64,[A-Za-z0-9+/=\r\n]+$/.test(value)) {
+    return value;
+  }
+  throw new Error('滑块图片格式无效');
+}
+
+function opaqueBounds(img: HTMLImageElement) {
+  const canvas = document.createElement('canvas');
+  canvas.width = img.naturalWidth;
+  canvas.height = img.naturalHeight;
+  const ctx = canvas.getContext('2d');
+  if (!ctx || canvas.width <= 0 || canvas.height <= 0) {
+    throw new Error('滑块图片尺寸无效');
+  }
+  ctx.drawImage(img, 0, 0);
+  const pixels = ctx.getImageData(0, 0, canvas.width, canvas.height).data;
+  let left = canvas.width,
+    top = canvas.height,
+    right = -1,
+    bottom = -1;
+  for (let y = 0; y < canvas.height; y += 1) {
+    for (let x = 0; x < canvas.width; x += 1) {
+      if (pixels[(y * canvas.width + x) * 4 + 3] > 128) {
+        left = Math.min(left, x);
+        top = Math.min(top, y);
+        right = Math.max(right, x);
+        bottom = Math.max(bottom, y);
+      }
+    }
+  }
+  if (right < left || bottom < top) throw new Error('滑块图片没有不透明内容');
+  return { x: left, y: top, width: right - left + 1, height: bottom - top + 1 };
+}
+
+function resetTelecomSlider() {
+  tSession.value = '';
+  tChallenge.value = null;
+  tBgSrc.value = '';
+  tPieceSrc.value = '';
+  tTravel.value = 0;
+  tDistance.value = 0;
+  tPieceLeft.value = 0;
+  tPieceWidth.value = 0;
+  tDragged.value = false;
+  tDragStart.value = null;
+  tDragEnd.value = null;
+  tDragTrack.value = [];
+  tSmsReady.value = false;
+  tSms.value = '';
+  tPass.value = '';
+  tDeviceId.value = '';
+}
+
+function layoutSliderPiece() {
+  if (!tBgNatural || !tTravel.value) return;
+  const scale = tBgClient / tBgNatural || 1;
+  const nativeLeft =
+    (tDistance.value / tTravel.value) * tTravel.value - tPieceNatural.x;
+  tPieceWidth.value = tPieceNatural.w * scale;
+  tPieceLeft.value = nativeLeft * scale;
+}
+
+function onSliderBgLoad(e: Event) {
+  const img = e.target as HTMLImageElement;
+  tBgNatural = img.naturalWidth;
+  tBgClient = img.clientWidth;
+  layoutSliderPiece();
+}
+
+function onSliderPieceLoad(e: Event) {
+  const img = e.target as HTMLImageElement;
+  try {
+    const bounds = opaqueBounds(img);
+    tPieceNatural = { w: img.naturalWidth, h: img.naturalHeight, x: bounds.x };
+    const travel = tBgNatural - bounds.width;
+    if (travel <= 0) throw new Error('滑块尺寸无效');
+    tTravel.value = travel;
+    tDistance.value = 0;
+    layoutSliderPiece();
+  } catch (err: any) {
+    authMsg.value = err?.message || String(err);
+  }
+}
+
+function onSliderDragStart() {
+  if (tDragStart.value == null) {
+    tDragStart.value = Date.now();
+    tDragTrack.value = [];
+    tDragEnd.value = null;
+  }
+}
+
+function onSliderInput(e: Event) {
+  onSliderDragStart();
+  const v = Number((e.target as HTMLInputElement).value);
+  tDistance.value = v;
+  const norm = tTravel.value > 0 ? v / tTravel.value : 0;
+  tDragTrack.value.push(`${norm.toFixed(3)}#0.000#${Date.now()}`);
+  tDragEnd.value = Date.now();
+  tDragged.value = true;
+  layoutSliderPiece();
+}
+
+async function unicomSend() {
+  authBusy.value = true;
+  authMsg.value = '正在发送联通验证码…';
+  try {
+    await axios.post('/api/balance/unicom/send', { phone: uPhone.value });
+    authMsg.value = '联通验证码已发送';
+  } catch (e: any) {
+    authMsg.value = balanceApiError(e);
+  } finally {
+    authBusy.value = false;
+  }
+}
+
+async function unicomLogin() {
+  authBusy.value = true;
+  authMsg.value = '正在登录联通…';
+  try {
+    const res = await axios.post('/api/balance/unicom/login', {
+      phone: uPhone.value,
+      code: uCode.value,
+    });
+    authMsg.value = `联通授信成功：${res.data.phone}（token ${res.data.token_len}）`;
+    uCode.value = '';
+  } catch (e: any) {
+    authMsg.value = balanceApiError(e);
+  } finally {
+    authBusy.value = false;
+  }
+}
+
+async function telecomChallenge() {
+  authBusy.value = true;
+  authMsg.value = '正在获取滑块…';
+  resetTelecomSlider();
+  try {
+    const res = await axios.post('/api/balance/telecom/challenge', {
+      phone: tPhone.value,
+    });
+    tSession.value = res.data.session_id;
+    tChallenge.value = res.data.challenge;
+    tBgSrc.value = imageSource(res.data.challenge.background_img);
+    tPieceSrc.value = imageSource(res.data.challenge.slider_img);
+    authMsg.value = '请拖动滑块';
+  } catch (e: any) {
+    authMsg.value = balanceApiError(e);
+  } finally {
+    authBusy.value = false;
+  }
+}
+
+async function telecomRefresh() {
+  if (!tSession.value) return;
+  authBusy.value = true;
+  authMsg.value = '正在刷新滑块…';
+  try {
+    const res = await axios.post('/api/balance/telecom/refresh', {
+      session_id: tSession.value,
+    });
+    tChallenge.value = res.data.challenge;
+    tBgSrc.value = imageSource(res.data.challenge.background_img);
+    tPieceSrc.value = imageSource(res.data.challenge.slider_img);
+    tDistance.value = 0;
+    tDragged.value = false;
+    tDragStart.value = null;
+    tDragTrack.value = [];
+    tDragEnd.value = null;
+    authMsg.value = '已刷新，请重新拖动';
+  } catch (e: any) {
+    authMsg.value = balanceApiError(e);
+  } finally {
+    authBusy.value = false;
+  }
+}
+
+async function telecomSendSMS() {
+  if (!tSession.value || !tDragged.value || tDragStart.value == null || tDragEnd.value == null) {
+    authMsg.value = '请先拖动滑块';
+    return;
+  }
+  authBusy.value = true;
+  try {
+    const norm = tTravel.value > 0 ? tDistance.value / tTravel.value : 0;
+    await axios.post('/api/balance/telecom/send-sms', {
+      session_id: tSession.value,
+      distance: norm,
+      track: tDragTrack.value.join('%'),
+      start_time: tDragStart.value,
+      end_time: tDragEnd.value,
+    });
+    tSmsReady.value = true;
+    authMsg.value = '短信已请求，请填写验证码';
+  } catch (e: any) {
+    authMsg.value = balanceApiError(e);
+  } finally {
+    authBusy.value = false;
+  }
+}
+
+async function telecomSubmitSMS() {
+  authBusy.value = true;
+  try {
+    const res = await axios.post('/api/balance/telecom/submit-sms', {
+      session_id: tSession.value,
+      code: tSms.value,
+    });
+    tDeviceId.value = res.data.device_id || '';
+    authMsg.value = '短信登录成功，DeviceId 已写入';
+  } catch (e: any) {
+    authMsg.value = balanceApiError(e);
+  } finally {
+    authBusy.value = false;
+  }
+}
+
+async function telecomComplete() {
+  authBusy.value = true;
+  try {
+    await axios.post('/api/balance/telecom/complete', {
+      session_id: tSession.value,
+      password: tPass.value,
+    });
+    authMsg.value = '电信授信完成';
+  } catch (e: any) {
+    authMsg.value = balanceApiError(e);
+  } finally {
+    authBusy.value = false;
+  }
+}
+
+// 三卡固定槽位（接口数组顺序 x75, v3e2, v3e1；缺失条目按「未检测到」占位）
+const MODEM_SLOTS: Array<{ id: string; title: string }> = [
+  { id: 'x75', title: '5G 主卡' },
+  { id: 'v3e2', title: '4G 模块 1（槽2，V3E2）' },
+  { id: 'v3e1', title: '4G 模块 2（槽3，V3E1）' },
+];
+
+// 槽位标题：主卡用 slot，外挂模块补「槽N，V3Ex」
+function modemTitle(card: ModemCard): string {
+  const slot = card.slot || '';
+  if (!slot) return card.id || '-';
+  if (card.role === 'integrated_5g' || card.id === 'x75') return slot;
+  const parts = [
+    typeof card.slot_num === 'number' ? `槽${card.slot_num}` : '',
+    card.id ? card.id.toUpperCase() : '',
+  ].filter((v) => v);
+  return parts.length ? `${slot}（${parts.join('，')}）` : slot;
+}
+
+===== STYLE =====
+.balance-card {
+  grid-column: 1 / -1;
+}
+.balance-head-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.balance-updated {
+  font-size: 12px;
+  opacity: 0.7;
+  margin-right: 4px;
+}
+.balance-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 16px;
+}
+.balance-item {
+  padding: 14px 16px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+}
+.balance-item.bad {
+  border-color: rgba(252, 129, 129, 0.5);
+}
+.balance-item-head {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+.balance-label {
+  font-size: 16px;
+  font-weight: 700;
+}
+.balance-phone {
+  font-size: 13px;
+  opacity: 0.75;
+  font-variant-numeric: tabular-nums;
+}
+.balance-rows {
+  display: grid;
+  gap: 6px;
+}
+.balance-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  font-size: 14px;
+}
+.balance-row span {
+  opacity: 0.7;
+}
+.balance-row strong {
+  font-size: 18px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.balance-unl {
+  font-style: normal;
+  font-size: 12px;
+  font-weight: 500;
+  opacity: 0.72;
+  margin-left: 6px;
+}
+.balance-error,
+.balance-empty,
+.balance-card-err,
+.auth-msg {
+  font-size: 13px;
+  opacity: 0.85;
+  margin-top: 8px;
+}
+.auth-panel {
+  margin-top: 16px;
+  padding-top: 14px;
+  border-top: 1px solid rgba(255, 255, 255, 0.18);
+}
+.auth-tabs {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+.auth-tab {
+  padding: 4px 12px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+}
+.auth-tab.active {
+  background: rgba(64, 158, 255, 0.35);
+  border-color: rgba(64, 158, 255, 0.6);
+}
+.auth-hint {
+  margin: 0 0 10px;
+  font-size: 12px;
+  opacity: 0.7;
+}
+.auth-body {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.auth-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+.auth-input {
+  flex: 1 1 120px;
+  min-width: 100px;
+  padding: 6px 10px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  background: rgba(0, 0, 0, 0.2);
+  color: #fff;
+}
+.slider-box {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.slider-stage {
+  position: relative;
+  max-width: 320px;
+  border-radius: 8px;
+  overflow: hidden;
+  background: rgba(0, 0, 0, 0.25);
+}
+.slider-bg {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+.slider-piece {
+  position: absolute;
+  top: 0;
+  left: 0;
+  pointer-events: none;
+}
+.slider-range {
+  max-width: 320px;
+  width: 100%;
+}
+.auth-device {
+  font-size: 12px;
+  font-family: ui-monospace, monospace;
+  word-break: break-all;
+  opacity: 0.85;
+}
+===== HOOKS（现网调用点，自行对齐） =====
+L122: <button class="btn btn-primary" @click="fetchBalance" :disabled="balanceLoading">刷新</button>
+L1851: fetchBalance();

@@ -15,24 +15,27 @@ static void refresh_network_detail_ui(void)
 
     if (network_detail_index < 0 || network_detail_index >= NETWORK_MODEM_COUNT)
         network_detail_index = 0;
-    backend_index = network_display_order[network_detail_index];
+    backend_index = network_backend_index(network_detail_index);
     modem = &ui_network_status.modems[backend_index];
 
-    lv_label_set_text_p(network_detail_shell.title_label,
-                        network_module_titles[network_detail_index]);
-    center_page_title(network_detail_shell.title_label);
-    if (network_identity_page)
+    if (network_detail_shell.title_label && lv_label_set_text_p) {
+        lv_label_set_text_p(network_detail_shell.title_label,
+                            network_module_titles[network_detail_index]);
+        center_page_title(network_detail_shell.title_label);
+    }
+    if (network_identity_page && network_identity_shell.title_label &&
+        lv_label_set_text_p) {
         lv_label_set_text_p(network_identity_shell.title_label,
                             network_module_titles[network_detail_index]);
-    if (network_identity_page)
         center_page_title(network_identity_shell.title_label);
+    }
     dot_color = ui_network_status.stale ? COLOR_AMBER :
                 (modem->online ? COLOR_GREEN : COLOR_RED);
     set_network_dot(network_detail_dot, modem->valid ? dot_color : COLOR_MUTED);
-    lv_label_set_text_p(network_detail_status_label,
+    set_label_text_if_changed(network_detail_status_label,
                         modem->online ? "在线" : "离线");
     snprintf(text, sizeof(text), "%s >", sim_type_text(modem));
-    lv_label_set_text_p(network_detail_sim_label, text);
+    set_label_text_if_changed(network_detail_sim_label, text);
     short_band_name(modem->band, band, sizeof(band));
     snprintf(text, sizeof(text), "%s · %s · %s",
              display_operator_name(modem->operator_name),
@@ -44,10 +47,10 @@ static void refresh_network_detail_ui(void)
     format_metric_int(modem->rsrq, rsrq, sizeof(rsrq));
     format_metric_double(modem->snr, snr, sizeof(snr));
     format_metric_int(modem->rssi, rssi, sizeof(rssi));
-    lv_label_set_text_p(network_detail_signal_values[0], rsrp);
-    lv_label_set_text_p(network_detail_signal_values[1], rsrq);
-    lv_label_set_text_p(network_detail_signal_values[2], snr);
-    lv_label_set_text_p(network_detail_signal_values[3], rssi);
+    set_label_text_if_changed(network_detail_signal_values[0], rsrp);
+    set_label_text_if_changed(network_detail_signal_values[1], rsrq);
+    set_label_text_if_changed(network_detail_signal_values[2], snr);
+    set_label_text_if_changed(network_detail_signal_values[3], rssi);
     if (modem->bandwidth[0]) {
         if (contains_text_ci(modem->bandwidth, "mhz"))
             safe_copy(bandwidth, sizeof(bandwidth), modem->bandwidth);
@@ -69,16 +72,16 @@ static void refresh_network_detail_ui(void)
     snprintf(text, sizeof(text), "%s\n\n%s\n\n%s\n\n%s",
              bandwidth, channel, cell,
              modem->net_select[0] ? modem->net_select : "--");
-    lv_label_set_text_p(network_detail_radio_values[0], text);
+    set_label_text_if_changed(network_detail_radio_values[0], text);
     snprintf(text, sizeof(text), "%s\n\n%s\n\n%s\n\n%s",
              pci, modem->plmn[0] ? modem->plmn : "--", temperature, ca);
-    lv_label_set_text_p(network_detail_radio_values[1], text);
+    set_label_text_if_changed(network_detail_radio_values[1], text);
     }
 
     if (network_detail_trend_page) refresh_network_trend_ui();
     if (network_detail_traffic_page) {
         format_duration_compact(modem->session_time, text, sizeof(text));
-        lv_label_set_text_p(network_detail_session_value, text);
+        set_label_text_if_changed(network_detail_session_value, text);
     }
 
     if (network_detail_network_page) {

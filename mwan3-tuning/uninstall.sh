@@ -47,8 +47,14 @@ fi
 
 "$ADB_BIN" shell "
     set -eu
-    chmod 0755 /tmp/remove-mwan3-tuning-boot-hook.sh
-    /tmp/remove-mwan3-tuning-boot-hook.sh
+    hook=/tmp/remove-mwan3-tuning-boot-hook.sh
+    if [ -x '$BASE/remove-boot-hook.sh' ]; then
+        hook='$BASE/remove-boot-hook.sh'
+    fi
+    # Windows 工作区 push 可能带 CRLF；执行前必须剥掉，否则半卸载
+    tr -d '\r' <\"\$hook\" >\"\$hook.lf\" && cat \"\$hook.lf\" >\"\$hook\" && rm -f \"\$hook.lf\"
+    chmod 0755 \"\$hook\"
+    \"\$hook\"
     rm -f /tmp/remove-mwan3-tuning-boot-hook.sh
 "
 
@@ -79,6 +85,11 @@ done
     if [ \"\$(uci -q get zwrt_router.network.opms_wan_mode)\" = MULTIWAN ]; then
         '$BASE/sdx75_set_mwan3.stock.sh'
         /etc/init.d/mwan3 restart
+    fi
+
+    # 先移除恢复守护（cron 行），否则脚本删掉后 cron 仍会每 2 分钟报错
+    if [ -x '$BASE/install-mode-guard.sh' ]; then
+        '$BASE/install-mode-guard.sh' --uninstall >/dev/null 2>&1 || true
     fi
 
     rm -rf '$BASE'

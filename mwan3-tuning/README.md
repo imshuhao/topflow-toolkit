@@ -1,40 +1,19 @@
 # mwan3 tuning
 
-为普通 MULTIWAN 模式配置定制分流，并改善链路质量检测和故障连接清理：
+修复普通 MULTIWAN 模式下三个相互关联的问题：
 
-1. 明确 Mihomo 非 sticky HTTPS、普通 LAN sticky HTTPS、IPv4 默认规则的匹配顺序；
-2. 将原厂单次极小 Ping、关闭质量判断的配置改为延迟/丢包采样及多轮防抖；
-3. 将原厂 WAN 上下线事件的全局 conntrack 清理改为按故障线路清理。
+1. 原厂全流量规则排在 HTTPS sticky 前面，导致 sticky 实际不命中；
+2. 蜂窝链路只做单次极小 Ping，不生成可用延迟/丢包质量；
+3. 任一 WAN 事件会清空整个 conntrack 表。
 
-这里的 HTTPS 规则限定为 IPv4 TCP/443：Mihomo 虚拟网关使用非 sticky 分流，普通 LAN
-保持 600 秒 sticky；不包括 UDP/443 QUIC。线路失败时只删除对应 fwmark 的 IPv4
+组件为 Mihomo 虚拟网关单独保留非 sticky HTTPS 分流，普通 LAN HTTPS 保持 600 秒
+sticky；三路蜂窝采用短采样、多轮防抖；线路失败时只删除对应 fwmark 的 IPv4
 conntrack，恢复事件不清理健康连接。
-
-## B22 核对结论
-
-2026-09-25 对比 B20/B22 原厂文件并只读检查 B22 实机后，确认：
-
-| 项目 | B22 原厂行为 | 本组件的作用 |
-| --- | --- | --- |
-| HTTPS 顺序 | `etc/config/mwan3` 中 `https` 已在 `default_rule_v4` 前；生成器设置规则但不纠正已有错序 | 安装 Mihomo 与普通 LAN 的定制分流及明确顺序，不再称为修复原厂 HTTPS 错序 |
-| 质量检测 | 生成器仍设置 `count=1`、`size=2`、`check_quality=0` | 启用延迟/丢包采样及防抖，仍有必要 |
-| 连接清理 | `ifup`、`ifdown`、`connected`、`disconnected` 仍可触发全局清理 | 仅在失败事件按线路 IPv4 mark 删除连接，仍有必要 |
-
-B20 的出厂规则顺序也正确。此前设备保存配置中出现过的错序，不能泛化为 B20/B22
-出厂配置的必然缺陷；保留定制规则安装也不代表 B22 必须修复 HTTPS 顺序。
-
-`sdx75_set_mwan3.sh`、`lib/mwan3/mwan3.sh`、`mwan3track`、`15-mwan3` 和
-`etc/config/mwan3` 在两个固件中逐字节相同。B22 修改了另一份 `mwan_monitor.sh`
-的探测周期及 SMULTIWAN 活动出口管理，未替代上述普通 MULTIWAN 调整。
-
-当次实机三路蜂窝 IPv4 均在线，质量采样已启用，`flush_conntrack` 已移除，定制规则
-顺序正确且有实际命中。这次未注入断线或切换聚合模式；具体探测目标和阈值仍需按网络
-环境评估，不能据此认定为所有地区的最优参数。
 
 ## 不分发厂商脚本
 
 仓库不包含 sdx75_set_mwan3.sh。安装器从目标设备读取当前原厂脚本，要求其 SHA-256
-与已验证 B22 文件完全一致（该文件与 B20 同哈希），并保存到 /data。运行时 bind mount 的是一个很小的原创
+与已验证 B20 文件完全一致，并保存到 /data。运行时 bind mount 的是一个很小的原创
 wrapper：先执行设备自己的原厂副本，再应用本项目规则。
 
 摘要不匹配时安装必须停止，不能跳过。
@@ -44,7 +23,10 @@ wrapper：先执行设备自己的原厂副本，再应用本项目规则。
 默认配置见 config.example：
 
     TRACK_IPS='199.7.83.42 180.76.76.76 192.58.128.30'
-    MIHOMO_SOURCE='192.168.11.11'
+    MIHOMO_SOURCE='192.168.0.254'
+
+> `192.168.11.11` 为历史示例；**本机 Mihomo 网关为 `192.168.0.254`**  
+> （本机 Mihomo 网关仍是 `192.168.0.254`；sing-box 宿主态网关是 `192.168.0.1`）。
 
 这些探测目标和阈值来自一次真实三 WAN 验证，不保证适合其他地区。安装前应从三条
 活动线路分别测试。设备端配置位于 /data/local/mwan3-tuning/config。
@@ -64,6 +46,25 @@ userdata 块设备，不能用其 source 字段反推 `/data` 中的原始文件
 
     adb shell 'INTERFACE=zte_mwan4 /etc/hotplug.d/iface/90-mwan3-selective-conntrack --inspect'
 
+## 聚合模式切回普通模式（2026-10-30 补）
+
+聚合 `SMULTIWAN` 下 mwan3 由厂商 ICG 接管，本调优**不生效**；切回 `MULTIWAN` 时没有任何组件
+把调优配置重新加载进运行态——wrapper 调 `apply-rules.sh --no-reload` 只写 uci、不重载 mwan3，
+切回后也没人重新 `apply` sing-box wan-balance、没人校验，表现就是「聚合关了但代理没恢复」。
+
+恢复脚本补齐这条链（幂等，仅在 `opms_wan_mode=MULTIWAN` 动作，`SMULTIWAN` 下直接退出）：
+
+    /data/local/mwan3-tuning/recover.sh            # 完整恢复：apply-rules + mwan3 restart + wan-balance apply
+    /data/local/mwan3-tuning/recover.sh --verify   # 只读校验（七项 OK/FAIL/SKIP）
+    /data/local/mwan3-tuning/recover.sh --check    # 仅状态不一致时才动作（守护用）
+
+    /data/local/mwan3-tuning/install-mode-guard.sh             # 装 cron 守护 */2 * * * * recover.sh --check
+    /data/local/mwan3-tuning/install-mode-guard.sh --uninstall # 卸载
+
+`--check` 静默只读：mwan3 未运行、权重漂移（≠6/3/3）、wan-balance ip rules 缺失、或 sing-box
+在跑但 `nft ip tf-sbwan` 缺失时才触发恢复；开机 180s 内不动作，`mkdir` 锁防并发，日志
+`/tmp/topflow-mode-recover.log` 超 256KB 自动截断。
+
 ## 卸载
 
     ./mwan3-tuning/uninstall.sh --check
@@ -73,10 +74,5 @@ userdata 块设备，不能用其 source 字段反推 `/data` 中的原始文件
 MULTIWAN，则使用安装时保存的原厂脚本重新生成配置并重启 mwan3。它不会切换模式，
 也不会改 Mihomo、DHCP 或 IPv6。
 
-2026-09-24 已将现有 B20 设备从旧 sticky-fix 目录迁移到公开安装器的
-“设备本地复制 + wrapper”方式，并验证重启后的 wrapper 和 hotplug 链接。
-迁移前后的 mwan3 配置语义一致。另一台干净设备的完整安装—重启—卸载流程仍未验证；
-底层规则、质量退出和单 WAN 故障清理已在 B20 实机验证。
-
-2026-09-25 B22 上恢复现有规则并验证最终重启后 MULTIWAN 服务正常；
-本次没有重做所有单 WAN 故障与模式切换测试，见 [升级记录](../docs/OTA-B20-TO-B22.md)。
+公开安装器的“设备本地复制 + wrapper”打包方式尚未在另一台干净设备上完成端到端
+安装—重启—卸载验证；底层规则、质量退出和单 WAN 故障清理已在 B20 实机验证。

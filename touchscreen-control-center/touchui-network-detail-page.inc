@@ -108,7 +108,7 @@ static int create_network_detail_tab_content(int tab)
         return 1;
     }
     if (tab == 3) {
-        int backend = network_display_order[network_detail_index];
+        int backend = network_backend_index(network_detail_index);
         struct modem_history *history = &network_history[backend];
         network_detail_trend_page = make_transparent_container(network_detail_page,
                                                                 0, 136, 320, 306);
@@ -268,8 +268,13 @@ static int create_network_detail_page(lv_obj_t *top)
         !network_detail_radio_button || !network_detail_network_button ||
         !network_detail_traffic_button || !network_detail_trend_button) {
         trace_ui_create("detail-header-allocation-failed");
-        lv_obj_del_p(network_detail_page);
+        if (network_detail_page && lv_obj_del_p) lv_obj_del_p(network_detail_page);
         network_detail_page = NULL;
+        memset(&network_detail_shell, 0, sizeof(network_detail_shell));
+        network_detail_dot = network_detail_status_label = NULL;
+        network_detail_band_label = network_detail_sim_label = NULL;
+        network_detail_radio_button = network_detail_network_button = NULL;
+        network_detail_traffic_button = network_detail_trend_button = NULL;
         return 0;
     }
     trace_ui_create("detail-header");

@@ -1,7 +1,7 @@
 # 触屏控制中心实机截图
 
-以下画面于 2026-08-29 从一台运行 B20 固件的 MU5252 实机只读抓取。实时数值只代表
-抓取时状态，不是示例配置或固定默认值。
+以下画面于 2026-08-29 从一台运行 B20 固件的 MU5252 实机只读抓取；「OpenDesign 还原页」
+一节为 2026-11 整页还原后的补充抓图。实时数值只代表抓取时状态，不是示例配置或固定默认值。
 
 公开图片使用不透明遮挡永久移除了号码、ICCID、IMSI、IMEI、模块序列号、IP、DNS、
 信道、PCI、PLMN 和小区标识。仓库不包含未遮挡原图。
@@ -47,3 +47,25 @@
 | Wi-Fi 功率 | 一键诊断 |
 | --- | --- |
 | ![Wi-Fi 功率](screenshots/touchscreen/17-device-wifi.png) | ![一键诊断](screenshots/touchscreen/18-device-diagnostics.png) |
+
+## OpenDesign 还原页（2026-11）
+
+按 OpenDesign 原型整页还原的触屏页：九宫格控制中心、余量、充电、分流、风扇曲线。
+
+| 九宫格控制中心 | 余量（号码后四位已遮挡） |
+| --- | --- |
+| ![九宫格控制中心](screenshots/touchscreen/34-cc-mint.png) | ![余量](screenshots/touchscreen/29-balance.png) |
+
+| 充电 | 分流 · 自动·质量 |
+| --- | --- |
+| ![充电](screenshots/touchscreen/30-charge.png) | ![分流自动质量](screenshots/touchscreen/29-wanbal.png) |
+
+| 分流 · 自定义 | 风扇曲线 · 原厂阶梯 |
+| --- | --- |
+| ![分流自定义](screenshots/touchscreen/24-wanbal-custom.png) | ![风扇原厂曲线](screenshots/touchscreen/33-cooling-factory.png) |
+
+| 风扇曲线 · 自定义 | 风扇曲线 · 应用确认 |
+| --- | --- |
+| ![风扇自定义曲线](screenshots/touchscreen/33-cooling-custom.png) | ![风扇曲线确认](screenshots/touchscreen/33-cooling-confirm.png) |
+
+> 余量查询源码见 [`balance/`](../balance/)；协议出处与许可见 [`NOTICE.md`](../NOTICE.md)。

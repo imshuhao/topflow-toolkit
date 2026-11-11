@@ -14,6 +14,10 @@ static int center_marker_on_text_line(int text_y, const void *font,
     return text_y + (line_height - marker_size) / 2;
 }
 
+/* 标准 RGB565：R 高 5 / G 中 6 / B 低 5。
+ * 2026-11-07 曾按「厂商 lv_color_t 字段 red 低」改成 BGR 打包，抓帧脚本
+ * 也按 R-low 解码，两边自洽但和玻璃相反：蓝 #31B6FF 实机变黄橙 #FFB631，
+ * 红变蓝紫。以双路解码对照玻璃为准，改回 (red<<11)。 */
 static lv_color_compat_t color_hex(uint32_t hex)
 {
     uint16_t red = (uint16_t)((hex >> 16) & 0xffu);

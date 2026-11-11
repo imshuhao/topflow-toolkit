@@ -1,0 +1,5 @@
+# TopFlow 无线 ADB 配置（部署为 /data/adb-wifi/config）
+# 端口: 1..65535，默认 15555（非默认端口，降低被扫描概率）
+ADB_WIFI_PORT=15555
+# 1 = 开机预置 TCP 监听；0 = 关闭（重启后 adbd 回到 USB-only）
+ADB_WIFI_ENABLED=1

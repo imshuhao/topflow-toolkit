@@ -1,0 +1,17 @@
+--- a/gossh/main.go
++++ b/gossh/main.go
+@@
+ 		auth.POST("/api/ubus", service.UbusAction)
+ 		// 三卡状态（5G 主卡 + 2 个外挂 4G 模块），数据源 zwrt-datad modems[]
+ 		auth.GET("/api/modems", service.ModemsAction)
++		// 余量 status + 授信（并进本进程；禁止再挂 :8898 旁路）
++		auth.GET("/api/balance/status", service.BalanceStatusAction)
++		auth.GET("/api/balance/accounts", service.BalanceAccountsAction)
++		auth.POST("/api/balance/unicom/send", service.BalanceUnicomSend)
++		auth.POST("/api/balance/unicom/login", service.BalanceUnicomLogin)
++		auth.POST("/api/balance/telecom/challenge", service.BalanceTelecomChallenge)
++		auth.POST("/api/balance/telecom/refresh", service.BalanceTelecomRefresh)
++		auth.POST("/api/balance/telecom/send-sms", service.BalanceTelecomSendSMS)
++		auth.POST("/api/balance/telecom/submit-sms", service.BalanceTelecomSubmitSMS)
++		auth.POST("/api/balance/telecom/complete", service.BalanceTelecomComplete)
+ 	}
