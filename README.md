@@ -51,7 +51,7 @@
 | [余量查询](#余量查询联通--电信) | 联通/电信套餐余量与跳点；源码在 [`balance/`](balance/)，触屏只读快照 |
 | [分流](#4-分流质量感知三卡选卡) | 自动·质量 / 三卡共池 / 自定义选池；弱网可溢出，不做协议硬绑死 |
 | [无线 ADB](#5-无线-adb-wrapper-v5) | TCP `15555` + USB 三合一；**永不隐藏 functionfs** |
-| [WebSSH](#6-webssh-局域网终端) | `8899` + 内置 sshd `22622`；B20 ubus/三卡补丁 |
+| [WebSSH](#6-webssh-局域网终端) | `8899` + 内置 sshd/SFTP `22622`；三卡 / 余量授信 / 充电只读卡；单进程、无 `:8898` |
 | [弱网黑匣子](#7-弱网黑匣子) | 设备自记 JSONL，手机经 WebSSH 出报告 |
 | [OTA 冻结](#8-ota-冻结) | hosts + iptables 双保险，挡官方强推 |
 | [mwan3 恢复](#9-聚合切回恢复) | `recover.sh` + cron：切回普通模式后把调优/分流拉回 |
@@ -70,8 +70,10 @@
 | 页面 | 画面 |
 | --- | --- |
 | **九宫格首页**<br>网络 / 代理 / 分流 · 余量 / 设备 / 充电 · 主题 / 两个空位；代理格右上角是运行状态圆点，设备格徽标汇总未读短信、流量限额与温控异常。底部一行是代理状态 + 模式 + 在线卡数。 | ![九宫格首页](docs/screenshots/touchscreen/34-cc-mint.png) |
+| **代理**<br>摘要卡（核心 / 内存 / 数据面 / DHCP）+ 实时/累计流量 + 启停/重启；页底「核心切换」可在 sing-box ↔ mihomo netns 间互斥切换（二次确认）。日夜两套色板。 | ![代理 · 夜间](docs/screenshots/touchscreen/28-proxy-night.png) |
+| **网络**<br>三卡总览、总速率与各卡信号；只读，不在本页启停 4G。 | ![网络](docs/screenshots/touchscreen/29-network.png) |
 | **余量**<br>顶部切「联通 / 电信」，下面固定五行：通用余、已跳、已免、共免、跳点。每行大字是主数值，小字补充总量/已用/今日跳点等。只显示本地缓存；底栏「更新于 / 下次」，点「立即刷新」才现采一次。号码后四位已遮成 `****`。 | ![余量](docs/screenshots/touchscreen/29-balance.png) |
-| **充电**<br>顶部大字是充电功率（`W`），状态行给「充电中 · 输入 x.xx V」；中间电量条 + 距满百分比；下方六行明细（输入电压 / 充电电流 / 充电功率 / 电池电压 / 电池电流 / 电池温度）。未插电时功率归零、前三行显 `--`。 | ![充电](docs/screenshots/touchscreen/30-charge.png) |
+| **充电**<br>顶部大字是充电功率（`W`），状态行给「充电中 · 输入 x.xx V」；中间电量条 + 距满百分比；下方六行明细（输入电压 / 充电电流 / 充电功率 / 电池电压 / 电池电流 / 电池温度）。未插电时功率归零、前三行显 `--`。Web 端同源读数见 [§6](#6-webssh-局域网终端)。 | ![充电](docs/screenshots/touchscreen/30-charge.png) |
 | **分流 · 自动·质量**<br>三段预设 + TCP / UDP 有效权重条。质量降权时顶部用警告色点名被降权的卡（如图中的 `4G#2`），权重按实测延迟/丢包动态算。 | ![分流 · 自动·质量](docs/screenshots/touchscreen/29-wanbal.png) |
 | **分流 · 自定义**<br>TCP / UDP 各三个卡位 chip + 「允许溢出」；点「应用分流」才下发。该档关闭质量降权与软偏置，卡位按你选的走。 | ![分流 · 自定义](docs/screenshots/touchscreen/24-wanbal-custom.png) |
 | **风扇曲线 · 原厂**<br>只读阶梯表：44 / 48 / 53 °C 对应 30% / 50% / 70%，降到「触发温度 − 4 °C」才退档（滞回），80 °C 满速保护与模式无关。 | ![风扇曲线 · 原厂](docs/screenshots/touchscreen/33-cooling-factory.png) |
@@ -130,6 +132,8 @@ B20 原厂 NTP/NITZ 路径会把「本地 UTC+8」写进 Unix 墙钟 → TLS/代
 面板惯例：**不设** `clash_api.secret`（空字符串）。  
 `NAS_DDNS_SUFFIX` 在公开分支已换成 `example.invalid`，请按自家 DDNS 改。  
 **不提交** `singbox/generated/`、订阅、UUID。
+
+**与 mihomo 的关系：** 现网默认 sing-box（eBPF `socket_assign` on `br-lan`）。`sing-box.sh rollback` 切回上游 `mihomo-netns`（DHCP 网关变 `192.168.0.254`）；`switchover` 再切回 sing-box。两者**不要同时跑**；触屏代理页底「核心切换」走同一套互斥命令。回滚物 `/data/mihomo` 需自行保留。
 
 相关公开纪要：[`docs/SINGBOX-MIGRATION-PLAN-2026-10-27.md`](docs/SINGBOX-MIGRATION-PLAN-2026-10-27.md)、[`docs/WAN-BALANCE-EBPF-COMPAT-2026-10-31.md`](docs/WAN-BALANCE-EBPF-COMPAT-2026-10-31.md)、[`docs/IPV6-DUALSTACK-FIX-2026-10-31.md`](docs/IPV6-DUALSTACK-FIX-2026-10-31.md)、[`docs/EBPF-MIGRATION-ROLLBACK-2026-10-31.md`](docs/EBPF-MIGRATION-ROLLBACK-2026-10-31.md)。
 
@@ -429,17 +433,28 @@ sh singbox/tests/test_wan_balance_render.sh
 
 ## 6. WebSSH（局域网终端）
 
-[`webssh/`](webssh/)：浏览器终端 `http://192.168.0.1:8899/app` + 内置 sshd `192.168.0.1:22622`。
+[`webssh/`](webssh/)：浏览器终端 `http://192.168.0.1:8899/app` + 内置 sshd / **SFTP** `192.168.0.1:22622`。
 
-**出处：** [`o8oo8o/WebSSH`](https://github.com/o8oo8o/WebSSH) → [`kanoqwq/WebSSH-u60pro`](https://github.com/kanoqwq/WebSSH-u60pro)；本目录只放 B20 补丁与安装脚本，**不附带**完整源码树与 arm64 二进制（见 [`webssh/BUILD.md`](webssh/BUILD.md)、[`NOTICE.md`](NOTICE.md)）。
+**出处：** [`o8oo8o/WebSSH`](https://github.com/o8oo8o/WebSSH) → [`kanoqwq/WebSSH-u60pro`](https://github.com/kanoqwq/WebSSH-u60pro)；本公开分支只放 B20 补丁与安装脚本，**不附带**完整源码树与 arm64 二进制（见 [`webssh/BUILD.md`](webssh/BUILD.md)、[`NOTICE.md`](NOTICE.md)）。
 
-本机补丁要点：ubus `subid` 兼容、`GET /api/modems` 三卡、`start.sh` 强制 `-ConfigDir /data/webssh`。
-细节与实测输出：[`docs/WEBSSH-DEPLOY-2026-10-27.md`](docs/WEBSSH-DEPLOY-2026-10-27.md)。
+**做什么**
+
+| 能力 | 入口 | 说明 |
+| --- | --- | --- |
+| Web 终端 / 仪表盘 | `http://192.168.0.1:8899/app` | 单进程；JWT 登录 |
+| 三卡状态 | `GET /api/modems` | 5G + 两路 4G；数据源 `zwrt-datad` |
+| 余量 + 授信 | `/api/balance/*` | 与触屏同源 `status.json`；**不要**再启 `:8898` / `balance-auth` |
+| 充电只读卡 | `GET /api/power/status` | 与触屏充电页、终端 `charge-status.sh` 同口径（功率 = µV×µA/1e12） |
+| SSH / SFTP / SCP | `192.168.0.1:22622` | 与 Web 同进程；**不上**独立 FTP/Samba。配方见 [`docs/LAN-SFTP-PUSH.md`](docs/LAN-SFTP-PUSH.md) |
+
+本机补丁要点：ubus `subid` 兼容、`start.sh` 强制 `-ConfigDir /data/webssh`、仪表盘 `allSettled` 兜底。  
+细节与实测：[`docs/WEBSSH-DEPLOY-2026-10-27.md`](docs/WEBSSH-DEPLOY-2026-10-27.md)。
 
 - 连接条目写 `192.168.0.1:22622`：内置 sshd 只绑 LAN 地址，`127.0.0.1` 会 refused；
-  `15555` 是 adb，不是 SSH。
+  `15555` 是 adb，不是 SSH / SFTP。
 - 启动必须带 `-ConfigDir`：程序用当前工作目录定位配置，cwd 不对会退化成只读根目录下的
   隐藏目录，并静默绑到 `0.0.0.0`。
+- **与 mihomo 无关**：WebSSH 不替代代理核心；切核心仍走 `sing-box.sh switchover/rollback` 或触屏代理页。
 
 ---
 
