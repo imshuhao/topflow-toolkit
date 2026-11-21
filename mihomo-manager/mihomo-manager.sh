@@ -107,6 +107,9 @@ acquire_lock() {
 }
 
 cleanup_runtime() {
+    if [ "${POLICY_TRIAL:-0}" = 1 ]; then
+        restore_policy || echo "恢复运行配置失败" >>"$ACTION_LOG"
+    fi
     if [ -n "$TEMP_FILES" ]; then
         rm -f $TEMP_FILES
     fi
@@ -531,83 +534,111 @@ config_get_json() {
     json_dump
 }
 
-read_config_candidate() {
-    candidate="$1"
-    mkdir -p "$BASE/run"
-    cat >"$candidate" || return 1
-    size="$(wc -c <"$candidate" 2>/dev/null | tr -d ' ')"
-    case "$size" in
-        ''|*[!0-9]*) return 1 ;;
-    esac
-    [ "$size" -gt 0 ] && [ "$size" -le "$MAX_CONFIG_BYTES" ]
+prepare_policy() {
+    mkdir -p "$BASE/run" || { result 0 "无法建立配置检查目录"; return 1; }
+    if ! /data/mihomo-manager/rewrite-policy "$CONFIG" >"$candidate" 2>"$CHECK_LOG"; then
+        result_with_details 0 "配置合并失败，已保留当前配置" "$(tail -n 6 "$CHECK_LOG")"
+        return 1
+    fi
+    if ! validate_config "$candidate"; then
+        result_with_details 0 "合并后的配置检查失败，已保留当前配置" "$(tail -n 60 "$CHECK_LOG")"
+        return 1
+    fi
 }
 
 config_validate_stdin() {
     acquire_lock || { result 0 "另一个管理操作正在执行，请稍后重试"; return; }
     candidate="$BASE/run/config.manager-check.$$"
     TEMP_FILES="$candidate"
-    if ! read_config_candidate "$candidate"; then
-        rm -f "$candidate"
-        result 0 "配置为空、过大或读取失败"
-        return
+    prepare_policy || return
+    result_with_details 1 "已按设备网关设置合并，核心检查通过" "$(tail -n 60 "$CHECK_LOG")"
+}
+
+load_policy() {
+    # Both paths are generated locally under the core's configuration directory.
+    controller_request PUT /configs "{\"path\":\"$1\"}" >>"$ACTION_LOG" 2>&1
+}
+
+restore_policy() {
+    POLICY_TRIAL=0
+    # A timed-out PUT may still be running inside the core. Restart from disk
+    # in that case so it cannot finish after a successful rollback.
+    if [ "${POLICY_LOADING:-0}" = 1 ] || ! load_policy "$CONFIG"; then
+        "$SERVICE" restart >>"$ACTION_LOG" 2>&1 || return 1
     fi
-    if validate_config "$candidate"; then
-        details="$(tail -n 60 "$CHECK_LOG" 2>/dev/null)"
-        rm -f "$candidate"
-        result_with_details 1 "配置检查通过" "$details"
-    else
-        details="$(tail -n 60 "$CHECK_LOG" 2>/dev/null)"
-        rm -f "$candidate"
-        result_with_details 0 "配置检查失败" "$details"
+}
+
+probe_internet() {
+    code=$(curl --noproxy "" --proxy "http://$NS_IP:7890" --max-time 4 -so /dev/null -w '%{http_code}' "$1")
+    [ "$code" = 204 ]
+}
+
+internet_status() {
+    probe_internet https://connectivitycheck.platform.hicloud.com/generate_204 &
+    cn_pid=$!
+    probe_internet https://cp.cloudflare.com/generate_204 &
+    global_pid=$!
+    cn_ok=0
+    global_ok=0
+    wait "$cn_pid" && cn_ok=1
+    wait "$global_pid" && global_ok=1
+    echo "$((cn_ok + 2 * global_ok))"
+}
+
+policy_health() {
+    controller_request GET /version >/dev/null 2>&1 || return 1
+    if tun_enabled; then
+        ip -n "$NS" link show dev mihomo0 up 2>/dev/null | grep -q mihomo0 || return 1
     fi
+    dig @"$NS_IP" example.com A +short +tries=1 +time=2 2>/dev/null | grep -Eq '^[0-9]+\.' || return 1
+    if [ -f "$BASE/ui/index.html" ]; then
+        curl --noproxy '*' -fsS --max-time 2 -o /dev/null "http://$NS_IP:9090/ui/" || return 1
+    fi
+    after=$(internet_status)
+    [ "$after" -ne 0 ] && [ "$((after & before))" -eq "$before" ]
 }
 
 config_apply_stdin() {
     acquire_lock || { result 0 "另一个管理操作正在执行，请稍后重试"; return; }
     candidate="$BASE/run/config.manager-new.$$"
-    rollback="/tmp/mihomo-config-manager-rollback.$$"
-    TEMP_FILES="$candidate $rollback"
-    if ! read_config_candidate "$candidate"; then
-        rm -f "$candidate"
-        result 0 "配置为空、过大或读取失败"
+    TEMP_FILES="$candidate"
+    prepare_policy || return
+    if cmp -s "$CONFIG" "$candidate"; then
+        result 1 "合并后的配置与当前配置相同，已保留当前设置"
         return
     fi
-    if ! validate_config "$candidate"; then
-        details="$(tail -n 60 "$CHECK_LOG" 2>/dev/null)"
-        rm -f "$candidate"
-        result_with_details 0 "配置检查失败，未保存" "$details"
-        return
-    fi
-    cp -p "$CONFIG" "$rollback" || {
-        rm -f "$candidate"
-        result 0 "无法建立临时回滚副本"
-        return
-    }
-    was_running=false
-    service_running && was_running=true
-    chmod 0600 "$candidate"
-    if ! mv "$candidate" "$CONFIG"; then
-        rm -f "$candidate" "$rollback"
-        result 0 "保存配置失败"
-        return
-    fi
-    chmod 0600 "$CONFIG"
-    sync
-    if [ "$was_running" = true ]; then
-        if ! "$SERVICE" restart >"$ACTION_LOG" 2>&1; then
-            cp -p "$rollback" "$CONFIG"
-            chmod 0600 "$CONFIG"
-            "$SERVICE" restart >>"$ACTION_LOG" 2>&1 || true
-            rm -f "$rollback"
-            result 0 "Mihomo 重启失败，原配置已恢复"
+
+    if service_running; then
+        : >"$ACTION_LOG"
+        # Keep the known working file at its boot path throughout the live trial.
+        before=$(internet_status)
+        POLICY_TRIAL=1
+        POLICY_LOADING=1
+        if load_policy "$candidate"; then
+            POLICY_LOADING=0
+        fi
+        if [ "$POLICY_LOADING" = 1 ] || ! policy_health; then
+            if restore_policy; then
+                result 0 "新策略未通过网关或联网检查，已恢复原配置"
+            else
+                result 0 "已保留原配置文件，但服务恢复失败，请检查运行日志"
+            fi
             return
         fi
     fi
-    rm -f "$rollback"
-    if [ "$was_running" = true ]; then
-        result 1 "配置已应用，Mihomo 已重启"
+    if ! mv -f "$candidate" "$CONFIG"; then
+        if [ "${POLICY_TRIAL:-0}" = 1 ] && ! restore_policy; then
+            result 0 "配置保存及服务恢复失败，请检查运行日志"
+        else
+            result 0 "保存失败，已保留原配置"
+        fi
+        return
+    fi
+    if [ "${POLICY_TRIAL:-0}" = 1 ]; then
+        POLICY_TRIAL=0
+        result 1 "已保存，网关和联网检查通过"
     else
-        result 1 "配置已保存"
+        result 1 "已保存合并配置；服务当前已停止，尚未实测联网"
     fi
 }
 

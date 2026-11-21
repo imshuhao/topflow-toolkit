@@ -518,7 +518,7 @@ define(["jquery", "service_helper"], function ($, serviceHelper) {
         $("#mm-config-meta").text(label || "已修改");
     }
 
-    function loadConfig(confirmOverwrite) {
+    function loadConfig(confirmOverwrite, successMessage) {
         if (busy) return;
         if (confirmOverwrite && configDirty && !window.confirm("重新读取会覆盖编辑区内容，是否继续？")) return;
         setBusy(true);
@@ -535,7 +535,7 @@ define(["jquery", "service_helper"], function ($, serviceHelper) {
             configLoaded = true;
             $("#mm-config-editor").attr("placeholder", "");
             updateConfigMeta(((data.size || 0) / 1024).toFixed(1) + " KB · 已同步");
-            setConfigResult("");
+            setConfigResult(successMessage || "");
         });
     }
 
@@ -565,7 +565,7 @@ define(["jquery", "service_helper"], function ($, serviceHelper) {
             setConfigResult("配置为空", "", true);
             return;
         }
-        if (!window.confirm("应用配置会重启 Mihomo，是否继续？")) return;
+        if (!window.confirm("应用后将检查联网，失败会恢复当前配置。是否继续？")) return;
         setBusy(true);
         setConfigResult("正在检查并应用配置……");
         rpc("config_apply", { content: content }, function (error, data) {
@@ -577,7 +577,7 @@ define(["jquery", "service_helper"], function ($, serviceHelper) {
             setConfigResult(data.message, data.details, !data.ok);
             if (data.ok) {
                 configDirty = false;
-                updateConfigMeta((new Blob([content]).size / 1024).toFixed(1) + " KB · 已应用");
+                loadConfig(false, data.message);
                 window.setTimeout(function () { loadStatus(true); }, 500);
             }
         });

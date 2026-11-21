@@ -39,6 +39,9 @@ for file in \
     [ -f "$file" ] || { echo "missing dependency: $file" >&2; exit 1; }
 done
 
+(cd "$HERE/rewrite" && CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -mod=readonly -trimpath -ldflags='-s -w' -o "$TEMP_DIR/rewrite-policy" .)
+device_shell 'command -v dig >/dev/null'
+
 if device_shell '/etc/init.d/mihomo-netns enabled' >/dev/null 2>&1; then
     SERVICE_WAS_ENABLED=1
 else
@@ -89,6 +92,8 @@ node "$HERE/patch-webui.mjs" \
     "$TEMP_DIR/index.patched.html" "$TEMP_DIR/menu.patched.js"
 
 device_shell 'mkdir -p /data/mihomo-manager/rpcd /data/mihomo-manager/acl.d /data/mihomo-manager/web/js-auth-adm /data/mihomo-manager/web/tmpl-auth-adm /data/mihomo-manager/web-root /data/mihomo/state /data/mihomo'
+device_push "$TEMP_DIR/rewrite-policy" /data/mihomo-manager/rewrite-policy.new
+device_shell 'chmod 0700 /data/mihomo-manager/rewrite-policy.new && mv /data/mihomo-manager/rewrite-policy.new /data/mihomo-manager/rewrite-policy'
 device_push "$HERE/mihomo-manager.sh" /data/mihomo-manager/mihomo-manager.sh
 device_push "$HERE/rpcd-mihomo.api" /data/mihomo-manager/rpcd/mihomo.api
 device_push "$HERE/mihomo-acl.json" /data/mihomo-manager/acl.d/mihomo.json

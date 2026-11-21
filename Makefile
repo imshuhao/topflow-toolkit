@@ -18,7 +18,7 @@ endif
 
 .PHONY: check shell-check shellcheck node-check boot-hook-check timekeeper-check touchui-check clean
 
-check: shell-check shellcheck node-check boot-hook-check timekeeper-check touchui-check firmware-check luci-check
+check: shell-check shellcheck node-check policy-check boot-hook-check timekeeper-check touchui-check firmware-check luci-check
 
 shell-check:
 	@find $(POSIX_DIRS) -type f \
@@ -37,6 +37,10 @@ node-check:
 	@node --check web-full-menu/patch-webui.mjs
 	@node --test mihomo-manager/tests/*.test.mjs
 	@node --test web-full-menu/tests/*.test.mjs
+
+.PHONY: policy-check
+policy-check:
+	cd mihomo-manager/rewrite && go test ./...
 
 boot-hook-check:
 	@./tests/boot-hooks.sh
