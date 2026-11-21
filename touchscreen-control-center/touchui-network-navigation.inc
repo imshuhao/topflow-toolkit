@@ -83,7 +83,10 @@ static void process_network_navigation(void)
     int view;
     if (pending_extension_cleanup) {
         pending_extension_cleanup = 0;
-        destroy_mihomo_page();
+        destroy_singbox_page();
+        destroy_wanbal_page();
+        destroy_balance_page();
+        destroy_charge_page();
         destroy_network_identity();
         destroy_network_detail();
         destroy_network_overview();
@@ -133,29 +136,32 @@ static void process_network_navigation(void)
                 pending_network_view = 1;
                 trace_ui_create("selftest-return-overview");
             } else if (selftest_step == 12) {
-                pending_mihomo_open = 1;
-                trace_ui_create("selftest-mihomo");
+                pending_singbox_open = 1;
+                trace_ui_create("selftest-proxy");
             } else if (selftest_step == 13) {
+                pending_wanbal_open = 1;
+                trace_ui_create("selftest-wanbal");
+            } else if (selftest_step == 14) {
                 device_tab = 0;
                 pending_device_view = 1;
                 trace_ui_create("selftest-device-system");
-            } else if (selftest_step == 14 && device_page) {
+            } else if (selftest_step == 15 && device_page) {
                 show_device_tab(1);
                 trace_ui_create("selftest-device-traffic");
-            } else if (selftest_step == 15 && device_page) {
+            } else if (selftest_step == 16 && device_page) {
                 show_device_tab(2);
                 trace_ui_create("selftest-device-cooling");
-            } else if (selftest_step == 16) {
+            } else if (selftest_step == 17) {
                 pending_device_view = 3;
                 trace_ui_create("selftest-device-cooling-curve");
-            } else if (selftest_step == 17) {
+            } else if (selftest_step == 18) {
                 device_tab = 3;
                 pending_device_view = 1;
                 trace_ui_create("selftest-device-wifi");
-            } else if (selftest_step == 18) {
+            } else if (selftest_step == 19) {
                 pending_device_view = 2;
                 trace_ui_create("selftest-diagnostics");
-            } else if (selftest_step >= 19) {
+            } else if (selftest_step >= 20) {
                 show_stock_page();
                 unlink("/tmp/touchui-selftest");
                 trace_ui_create("selftest-complete");
@@ -165,23 +171,86 @@ static void process_network_navigation(void)
             selftest_step = 0;
         }
     }
-    if (pending_mihomo_open && network_parent) {
-        pending_mihomo_open = 0;
+    if (pending_singbox_open && network_parent) {
+        pending_singbox_open = 0;
+        pending_wanbal_open = 0;
+        pending_balance_open = 0;
         pending_network_view = 0;
+        destroy_wanbal_page();
+        destroy_balance_page();
+        destroy_charge_page();
         destroy_network_identity();
         destroy_network_detail();
         destroy_network_overview();
         destroy_device_pages();
-        if (!manager_page && !create_mihomo_page(network_parent)) return;
-        show_page(PAGE_MIHOMO);
+        if (!manager_page && !create_singbox_page(network_parent)) return;
+        show_page(PAGE_SINGBOX);
         ui_generation = -1;
         refresh_ui();
+        return;
+    }
+    if (pending_wanbal_open && network_parent) {
+        pending_wanbal_open = 0;
+        pending_singbox_open = 0;
+        pending_balance_open = 0;
+        pending_network_view = 0;
+        destroy_singbox_page();
+        destroy_balance_page();
+        destroy_charge_page();
+        destroy_network_identity();
+        destroy_network_detail();
+        destroy_network_overview();
+        destroy_device_pages();
+        if (!wanbal_page && !create_wanbal_page(network_parent)) return;
+        show_page(PAGE_WANBAL);
+        ui_wanbal_generation = -1;
+        refresh_wanbal_ui();
+        return;
+    }
+    if (pending_balance_open && network_parent) {
+        pending_balance_open = 0;
+        pending_singbox_open = 0;
+        pending_wanbal_open = 0;
+        pending_charge_open = 0;
+        pending_network_view = 0;
+        destroy_singbox_page();
+        destroy_wanbal_page();
+        destroy_charge_page();
+        destroy_network_identity();
+        destroy_network_detail();
+        destroy_network_overview();
+        destroy_device_pages();
+        if (!balance_page && !create_balance_page(network_parent)) return;
+        show_page(PAGE_BALANCE);
+        ui_balance_generation = -1;
+        refresh_balance_ui();
+        return;
+    }
+    if (pending_charge_open && network_parent) {
+        pending_charge_open = 0;
+        pending_singbox_open = 0;
+        pending_wanbal_open = 0;
+        pending_balance_open = 0;
+        pending_network_view = 0;
+        destroy_singbox_page();
+        destroy_wanbal_page();
+        destroy_balance_page();
+        destroy_network_identity();
+        destroy_network_detail();
+        destroy_network_overview();
+        destroy_device_pages();
+        if (!charge_page && !create_charge_page(network_parent)) return;
+        show_page(PAGE_CHARGE);
+        refresh_charge_ui();
         return;
     }
     view = pending_network_view;
     if (!view || !network_parent) return;
     pending_network_view = 0;
-    destroy_mihomo_page();
+    destroy_singbox_page();
+    destroy_wanbal_page();
+    destroy_balance_page();
+    destroy_charge_page();
     destroy_device_pages();
     if (view == 1) {
         destroy_network_identity();

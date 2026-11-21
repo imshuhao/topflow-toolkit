@@ -1,0 +1,566 @@
+diff --git a/webssh/src/views/Empty.vue b/webssh/src/views/Empty.vue
+index 6c7b507..3ca7070 100644
+--- a/webssh/src/views/Empty.vue
++++ b/webssh/src/views/Empty.vue
+@@ -824,6 +824,108 @@
+           </div>
+         </div>
+       </div>
++
++      <!-- 三卡状态卡片 -->
++      <div class="card modem-cards-card">
++        <div class="card-header">
++          <h3 class="hd">
++            <img style="width: 24px" :src="NetworkIcon" alt="" />三卡状态
++          </h3>
++          <span class="modem-total">{{ modemCards.length }} 张卡</span>
++        </div>
++        <div class="card-content">
++          <el-row :gutter="16">
++            <el-col
++              v-for="card in modemCards"
++              :key="card.id"
++              :xs="24"
++              :sm="24"
++              :md="8">
++              <div
++                :class="['modem-card', { offline: !modemOnline(card) }]"
++                :data-modem-id="card.id">
++                <div class="modem-card-head">
++                  <div>
++                    <div class="modem-card-title">{{ card.title }}</div>
++                    <div class="modem-card-sub">
++                      {{ card.ifname || '-' }}
++                      <span v-if="card.subid != null">· subid {{ card.subid }}</span>
++                    </div>
++                  </div>
++                  <span :class="['tag', modemStatus(card).cls]">{{
++                    modemStatus(card).text
++                  }}</span>
++                </div>
++
++                <div class="modem-grid">
++                  <div class="modem-item">
++                    <span class="label">运营商</span>
++                    <span class="value">{{ modemText(card.net?.operator) }}</span>
++                  </div>
++                  <div class="modem-item">
++                    <span class="label">制式</span>
++                    <span class="value">{{ modemRat(card) }}</span>
++                  </div>
++                  <div class="modem-item">
++                    <span class="label">频段 / 带宽</span>
++                    <span class="value">{{ modemBand(card) }}</span>
++                  </div>
++                  <div class="modem-item">
++                    <span class="label">信号格</span>
++                    <div class="signal-bars modem-bars">
++                      <div
++                        v-for="n in 5"
++                        :key="n"
++                        :class="[
++                          'bar',
++                          { active: n <= (card.net?.bars ?? 0) },
++                        ]"></div>
++                    </div>
++                  </div>
++                  <div class="modem-item">
++                    <span class="label">RSRP</span>
++                    <span class="value">{{ modemDbm(card.net?.rsrp) }}</span>
++                  </div>
++                  <div class="modem-item">
++                    <span class="label">RSRQ</span>
++                    <span class="value">{{ modemDb(card.net?.rsrq) }}</span>
++                  </div>
++                  <div class="modem-item">
++                    <span class="label">SINR</span>
++                    <span class="value">{{ modemSnr(card.net?.sinr) }}</span>
++                  </div>
++                  <div class="modem-item">
++                    <span class="label">IPv4</span>
++                    <span class="value">{{ modemIpv4(card) }}</span>
++                  </div>
++                </div>
++
++                <div class="modem-metrics">
++                  <div class="modem-metric">
++                    <span class="label"
++                      >实时速率<em v-if="card.traffic?.source" class="modem-src">{{
++                        card.traffic.source
++                      }}</em></span
++                    >
++                    <span class="value">
++                      <span class="download"
++                        >↓ {{ modemSpeed(card.traffic?.rx_speed) }}</span
++                      >
++                      <span class="upload"
++                        >↑ {{ modemSpeed(card.traffic?.tx_speed) }}</span
++                      >
++                    </span>
++                  </div>
++                  <div class="modem-metric">
++                    <span class="label">本次会话流量</span>
++                    <span class="value">{{ modemSessionBytes(card) }}</span>
++                  </div>
++                </div>
++              </div>
++            </el-col>
++          </el-row>
++        </div>
++      </div>
+     </div>
+ 
+     <!-- 空状态 -->
+@@ -1001,6 +1103,73 @@ interface LanUserList {
+   guest_num_6g: number;
+ }
+ 
++// 三卡状态（GET /api/modems）
++interface ModemNet {
++  type?: string | null;
++  rat?: string | null;
++  operator?: string | null;
++  band?: string | null;
++  band_label?: string | null;
++  bandwidth?: number | null;
++  channel?: number | null;
++  pci?: number | null;
++  cell_id?: number | null;
++  rsrp?: number | null;
++  rsrq?: number | null;
++  sinr?: number | null;
++  rssi?: number | null;
++  bars?: number | null;
++  roaming?: string | null;
++}
++
++interface ModemIpInfo {
++  up?: boolean | null;
++  address?: string | null;
++  netmask?: string | null;
++  gateway?: string | null;
++  dns?: string[] | null;
++}
++
++interface ModemTraffic {
++  rx_speed?: number | null;
++  tx_speed?: number | null;
++  rx_bytes?: number | null;
++  tx_bytes?: number | null;
++  session_time?: number | null;
++  source?: string | null;
++}
++
++interface ModemCard {
++  id: string;
++  slot?: string | null;
++  slot_num?: number | null;
++  role?: string | null;
++  ifname?: string | null;
++  wan_interface?: string | null;
++  subid?: number | null;
++  present?: boolean | null;
++  enabled?: boolean | null;
++  online?: boolean | null;
++  state?: string | null;
++  operate_mode?: string | null;
++  net?: ModemNet | null;
++  wwan?: { status?: string | null } | null;
++  ipv4?: ModemIpInfo | null;
++  ipv6?: ModemIpInfo | null;
++  traffic?: ModemTraffic | null;
++  error?: string | null;
++}
++
++interface ModemCardView extends ModemCard {
++  title: string;
++}
++
++interface ModemCardsResponse {
++  code: number;
++  msg?: string;
++  data?: { cards?: ModemCard[] };
++}
++
+ // 响应式数据
+ const loading = ref(false);
+ const error = ref<string | null>(null);
+@@ -1015,6 +1184,54 @@ const simInfo = ref<SimInfo>({} as SimInfo);
+ const simInfo2 = ref<SimInfo2>({} as SimInfo2);
+ const wwanInfo = ref<WwanInfo>({} as WwanInfo);
+ const lanUserList = ref<LanUserList>({} as LanUserList);
++const modemCardsRaw = ref<ModemCard[]>([]);
++
++// 三卡固定槽位（接口数组顺序 x75, v3e2, v3e1；缺失条目按「未检测到」占位）
++const MODEM_SLOTS: Array<{ id: string; title: string }> = [
++  { id: 'x75', title: '5G 主卡' },
++  { id: 'v3e2', title: '4G 模块 1（槽2，V3E2）' },
++  { id: 'v3e1', title: '4G 模块 2（槽3，V3E1）' },
++];
++
++// 槽位标题：主卡用 slot，外挂模块补「槽N，V3Ex」
++function modemTitle(card: ModemCard): string {
++  const slot = card.slot || '';
++  if (!slot) return card.id || '-';
++  if (card.role === 'integrated_5g' || card.id === 'x75') return slot;
++  const parts = [
++    typeof card.slot_num === 'number' ? `槽${card.slot_num}` : '',
++    card.id ? card.id.toUpperCase() : '',
++  ].filter((v) => v);
++  return parts.length ? `${slot}（${parts.join('，')}）` : slot;
++}
++
++const modemCards = computed<ModemCardView[]>(() => {
++  const byId = new Map<string, ModemCard>();
++  for (const card of modemCardsRaw.value || []) {
++    if (card && card.id) byId.set(card.id, card);
++  }
++  const known = MODEM_SLOTS.map((slot) => {
++    const raw = byId.get(slot.id);
++    byId.delete(slot.id);
++    return {
++      ...(raw || { id: slot.id }),
++      title: raw ? modemTitle(raw) : slot.title,
++      present: raw ? raw.present !== false : false,
++      online: raw ? raw.online === true : false,
++    } as ModemCardView;
++  });
++  // 未预置的卡（后续扩展）追加显示
++  const extra = Array.from(byId.values()).map(
++    (raw) =>
++      ({
++        ...raw,
++        title: modemTitle(raw),
++        present: raw.present !== false,
++        online: raw.online === true,
++      } as ModemCardView)
++  );
++  return [...known, ...extra];
++});
+ const networkType = computed(() => {
+   const val = d.value?.network_type;
+   if (
+@@ -1222,6 +1439,87 @@ function formatNumber(num: number): string {
+   return num.toLocaleString();
+ }
+ 
++// 三卡状态辅助函数（null / 缺字段统一显示 -）
++function modemState(card: ModemCardView): string {
++  if (card.state) return card.state;
++  if (card.present === false) return 'absent';
++  if (card.online === true) return 'connected';
++  if (card.enabled === false) return 'disabled';
++  return 'unknown';
++}
++
++function modemOnline(card: ModemCardView): boolean {
++  return modemState(card) === 'connected';
++}
++
++function modemStatus(card: ModemCardView): { text: string; cls: string } {
++  switch (modemState(card)) {
++    case 'connected':
++      return { text: '在线', cls: 'success' };
++    case 'disabled':
++      return { text: '已停用', cls: 'muted' };
++    case 'offline':
++      return { text: '未连接', cls: 'warning' };
++    case 'absent':
++      return { text: '未检测到', cls: 'danger' };
++    default:
++      return { text: '未知', cls: 'muted' };
++  }
++}
++
++function modemNum(v: number | null | undefined): number | null {
++  return typeof v === 'number' && !Number.isNaN(v) ? v : null;
++}
++
++function modemDbm(v: number | null | undefined): string {
++  const n = modemNum(v);
++  return n === null ? '-' : `${n} dBm`;
++}
++
++function modemDb(v: number | null | undefined): string {
++  const n = modemNum(v);
++  return n === null ? '-' : `${n} dB`;
++}
++
++function modemSnr(v: number | null | undefined): string {
++  const n = modemNum(v);
++  return n === null ? '-' : `${n.toFixed(1)} dB`;
++}
++
++function modemSpeed(v: number | null | undefined): string {
++  const n = modemNum(v);
++  return n === null ? '-' : formatSpeed(n);
++}
++
++function modemRat(card: ModemCardView): string {
++  return modemText(card.net?.rat || card.net?.type);
++}
++
++function modemText(v: string | null | undefined): string {
++  return v && v.trim() !== '' ? v : '-';
++}
++
++function modemBand(card: ModemCardView): string {
++  const band = card.net?.band_label || card.net?.band;
++  const bandwidth = modemNum(card.net?.bandwidth);
++  if (!band && bandwidth === null) return '-';
++  const bw = bandwidth === null ? '' : ` / ${bandwidth} MHz`;
++  return `${band || '-'}${bw}`;
++}
++
++function modemSessionBytes(card: ModemCardView): string {
++  const rx = modemNum(card.traffic?.rx_bytes);
++  const tx = modemNum(card.traffic?.tx_bytes);
++  if (rx === null && tx === null) return '-';
++  return formatBytes((rx ?? 0) + (tx ?? 0));
++}
++
++function modemIpv4(card: ModemCardView): string {
++  const ipv4 = card.ipv4;
++  if (!ipv4 || ipv4.up === false || !ipv4.address) return '-';
++  return ipv4.address;
++}
++
+ // 系统信息格式化函数
+ function formatLoad(load: number): string {
+   return (load / 1000).toFixed(2);
+@@ -1324,25 +1622,30 @@ async function callUbus<T>(request: any): Promise<T> {
+   }
+ }
+ 
++async function fetchModems() {
++  try {
++    const response = await axios.get<ModemCardsResponse>('/api/modems');
++    const body = response?.data;
++    // code=0 才更新；code=2（9460 不可用且无缓存卡信息）等异常静默保留上次数据
++    if (body && body.code === 0 && Array.isArray(body.data?.cards)) {
++      modemCardsRaw.value = body.data!.cards!;
++    }
++  } catch (e) {
++    // 静默失败：保留上次数据，不弹错、不影响其它卡片
++    console.warn('三卡状态获取失败:', e);
++  }
++}
++
+ async function fetchAllData() {
+   loading.value = true;
+   error.value = null;
+ 
++  // 三卡状态跟随仪表盘刷新节奏；独立请求，失败不影响主数据
++  fetchModems();
++
+   try {
+-    // 并行请求所有数据
+-    const [
+-      netInfo,
+-      lan,
+-      wan,
+-      wan6,
+-      traffic,
+-      device,
+-      cpuTempData,
+-      simInfoData,
+-      simInfo2Data,
+-      wwanInfoData,
+-      lanUserData,
+-    ] = await Promise.all([
++    // 并行请求所有数据（单个 ubus 调用失败不影响整页渲染）
++    const results = await Promise.allSettled([
+       callUbus<NetInfoResult>(netInfoRequest),
+       callUbus<NetworkInterface>(lanRequest),
+       callUbus<NetworkInterface>(wanRequest),
+@@ -1356,17 +1659,43 @@ async function fetchAllData() {
+       callUbus<LanUserList>(lanUserListRequest),
+     ]);
+ 
+-    data.value = netInfo;
+-    lanData.value = lan;
+-    wanData.value = wan;
+-    wan6Data.value = wan6;
+-    trafficData.value = traffic;
+-    deviceInfo.value = device;
+-    cpuTemp.value = cpuTempData;
+-    simInfo.value = simInfoData;
+-    simInfo2.value = simInfo2Data;
+-    wwanInfo.value = wwanInfoData;
+-    lanUserList.value = lanUserData;
++    // 失败的请求记录到局部数组，不抛异常
++    const failures: string[] = [];
++    const pick = <T>(res: PromiseSettledResult<T>): T | null => {
++      if (res.status === 'fulfilled') return res.value;
++      failures.push(res.reason?.message || String(res.reason ?? '未知错误'));
++      return null;
++    };
++
++    const netInfo = pick(results[0]);
++    const lan = pick(results[1]);
++    const wan = pick(results[2]);
++    const wan6 = pick(results[3]);
++    const traffic = pick(results[4]);
++    const device = pick(results[5]);
++    const cpuTempData = pick(results[6]);
++    const simInfoData = pick(results[7]);
++    const simInfo2Data = pick(results[8]);
++    const wwanInfoData = pick(results[9]);
++    const lanUserData = pick(results[10]);
++
++    data.value = netInfo ?? ({} as NetInfoResult);
++    lanData.value = lan ?? ({} as NetworkInterface);
++    wanData.value = wan ?? ({} as NetworkInterface);
++    wan6Data.value = wan6 ?? ({} as NetworkInterface);
++    trafficData.value = traffic ?? ({} as TrafficData);
++    deviceInfo.value = device ?? ({} as DeviceInfo);
++    cpuTemp.value = cpuTempData ?? ({} as CpuTemp);
++    simInfo.value = simInfoData ?? ({} as SimInfo);
++    simInfo2.value = simInfo2Data ?? ({} as SimInfo2);
++    wwanInfo.value = wwanInfoData ?? ({} as WwanInfo);
++    lanUserList.value = lanUserData ?? ({} as LanUserList);
++
++    // 只有全部请求都失败时才整页报错，否则正常渲染（缺失卡片显示 -）
++    if (failures.length === results.length) {
++      error.value = failures[0];
++      console.error('数据获取失败:', failures);
++    }
+   } catch (e: any) {
+     error.value = e?.message || '请求失败';
+     console.error('数据获取失败:', e);
+@@ -2323,6 +2652,135 @@ onUnmounted(() => {
+   }
+ }
+ 
++/* 三卡状态 */
++.modem-cards-card {
++  grid-column: 1 / -1; /* 占据整行 */
++}
++
++.modem-total {
++  font-size: 12px;
++  font-weight: 600;
++  color: rgba(255, 255, 255, 0.65);
++}
++
++.modem-card {
++  height: 100%;
++  box-sizing: border-box;
++  margin-bottom: 16px;
++  padding: 14px 16px;
++  border-radius: 12px;
++  background: rgba(255, 255, 255, 0.08);
++  border: 1px solid rgba(255, 255, 255, 0.2);
++  transition: opacity 0.2s ease;
++}
++
++.modem-card.offline {
++  opacity: 0.55;
++}
++
++.modem-card-head {
++  display: flex;
++  justify-content: space-between;
++  align-items: flex-start;
++  gap: 8px;
++  margin-bottom: 12px;
++}
++
++.modem-card-title {
++  font-size: 15px;
++  font-weight: 600;
++  color: rgba(255, 255, 255, 0.95);
++}
++
++.modem-card-sub {
++  margin-top: 2px;
++  font-size: 11px;
++  color: rgba(255, 255, 255, 0.55);
++  word-break: break-all;
++}
++
++.tag.muted {
++  background: rgba(255, 255, 255, 0.12);
++  color: rgba(255, 255, 255, 0.7);
++  border: 1px solid rgba(255, 255, 255, 0.2);
++}
++
++.modem-grid {
++  display: grid;
++  grid-template-columns: repeat(2, minmax(0, 1fr));
++  gap: 10px 12px;
++}
++
++.modem-item {
++  display: flex;
++  flex-direction: column;
++  gap: 4px;
++  min-width: 0;
++}
++
++.modem-item .label,
++.modem-metric .label {
++  font-size: 11px;
++  font-weight: 600;
++  color: rgba(255, 255, 255, 0.6);
++  text-transform: uppercase;
++  letter-spacing: 0.5px;
++}
++
++.modem-item .value {
++  font-size: 13px;
++  font-weight: 500;
++  color: rgba(255, 255, 255, 0.92);
++  word-break: break-all;
++}
++
++.modem-bars {
++  height: 18px;
++}
++
++.modem-src {
++  margin-left: 4px;
++  font-style: normal;
++  font-weight: 500;
++  text-transform: none;
++  letter-spacing: 0;
++  opacity: 0.65;
++}
++
++.modem-metrics {
++  display: grid;
++  grid-template-columns: repeat(2, minmax(0, 1fr));
++  gap: 10px 12px;
++  margin-top: 12px;
++  padding-top: 12px;
++  border-top: 1px solid rgba(255, 255, 255, 0.15);
++}
++
++.modem-metric {
++  display: flex;
++  flex-direction: column;
++  gap: 4px;
++  min-width: 0;
++}
++
++.modem-metric .value {
++  font-size: 13px;
++  font-weight: 600;
++  color: rgba(255, 255, 255, 0.92);
++  display: flex;
++  flex-wrap: wrap;
++  gap: 10px;
++  word-break: break-all;
++}
++
++.modem-metric .value .download {
++  color: #68d391;
++}
++
++.modem-metric .value .upload {
++  color: #fc8181;
++}
++
+ .mytable{caption-side: bottom;}
+ .mytable{border-collapse: collapse;}
+ .mytable,tr,td{border: 1px solid rgb(59, 104, 141);font-size: 14px;text-align: center;}

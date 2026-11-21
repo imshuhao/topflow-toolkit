@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta id="access-token" name="access-token" content="">
+  <title>余量授信</title>
+  <link rel="stylesheet" href="/style.css">
+  <style>
+    .tabs { display:flex; gap:.5rem; margin:1rem 0; }
+    .tabs button { width:auto; flex:1; margin-top:0; background:#2a3646; color:#edf2f7; }
+    .tabs button.active { background:#59a7ff; color:#07111f; }
+    .panel[hidden] { display:none !important; }
+    #status-box { font-size:.9rem; opacity:.9; white-space:pre-wrap; }
+    a.back { color:#59a7ff; }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>余量授信</h1>
+    <p class="notice">仅 LAN 使用。联通：短信换 token；电信：滑块+短信拿 DeviceId，服务密码可选验证。成功后自动写入设备 <code>accounts.json</code>。</p>
+    <p><a class="back" href="http://192.168.0.1:8899/app/">← 返回 WebSSH</a></p>
+
+    <section>
+      <h2>当前凭证</h2>
+      <pre id="status-box">加载中…</pre>
+      <button id="refresh-status" type="button">刷新状态</button>
+    </section>
+
+    <div class="tabs">
+      <button type="button" class="active" data-tab="unicom">联通</button>
+      <button type="button" data-tab="telecom">电信</button>
+    </div>
+
+    <div id="panel-unicom" class="panel">
+      <section>
+        <h2>1. 发验证码</h2>
+        <label for="u-phone">手机号</label>
+        <input id="u-phone" type="tel" inputmode="numeric" maxlength="11" autocomplete="off">
+        <button id="u-send" type="button">发送联通短信</button>
+      </section>
+      <section>
+        <h2>2. 提交验证码</h2>
+        <label for="u-code">短信验证码</label>
+        <input id="u-code" type="text" inputmode="numeric" maxlength="8" autocomplete="one-time-code">
+        <button id="u-login" type="button">登录并写入</button>
+      </section>
+    </div>
+
+    <div id="panel-telecom" class="panel" hidden>
+      <section>
+        <h2>1. 获取滑块</h2>
+        <label for="phone">手机号</label>
+        <input id="phone" type="tel" inputmode="numeric" maxlength="11" autocomplete="off" required>
+        <button id="challenge-button" type="button">获取滑块</button>
+      </section>
+      <section>
+        <h2>2. 手动滑块并发送短信</h2>
+        <div id="challenge-images" hidden>
+          <img id="background" alt="滑块背景图">
+          <img id="slider-piece" alt="滑块拼图">
+        </div>
+        <label for="slider">拖动到缺口位置</label>
+        <input id="slider" type="range" min="0" max="100" value="0" step="0.1" disabled>
+        <button id="refresh-button" type="button" disabled>刷新滑块</button>
+        <button id="send-button" type="button" disabled>发送一次短信</button>
+      </section>
+      <section>
+        <h2>3. 提交短信验证码</h2>
+        <label for="sms-code">六位短信验证码</label>
+        <input id="sms-code" type="text" inputmode="numeric" maxlength="6" disabled>
+        <button id="submit-button" type="button" disabled>提交验证码</button>
+      </section>
+      <section>
+        <h2>4. 服务密码（建议）</h2>
+        <label for="service-password">电信服务密码</label>
+        <input id="service-password" type="password" autocomplete="off" maxlength="128" disabled>
+        <button id="complete-button" type="button" disabled>验证并写入</button>
+      </section>
+      <section id="device-id-section" hidden>
+        <h2>DeviceId</h2>
+        <code id="device-id-value"></code>
+        <button id="copy-button" type="button">复制 DeviceId</button>
+      </section>
+    </div>
+
+    <output id="result" role="status" aria-live="polite"></output>
+  </main>
+  <script src="/app.js"></script>
+</body>
+</html>

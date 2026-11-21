@@ -1,0 +1,6 @@
+# 首次启动前放到 /data/webssh/.GoWebSSH/GoWebSSH.toml
+# 务必只绑 LAN，不要 0.0.0.0。
+address = "192.168.0.1"
+port = "8899"
+is_init = false
+db_type = "sqlite"

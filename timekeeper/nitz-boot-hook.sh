@@ -1,5 +1,5 @@
 #!/bin/sh
-# B22 does not provide the standard /etc/init.d/rcS. Make NITZ's actual
+# B20 does not provide the standard /etc/init.d/rcS. Make NITZ's actual
 # service entry point depend on clock preparation, independent of rc.d order.
 set -eu
 NWINFO_INIT="${NWINFO_INIT:-/etc/init.d/zte_topsw_nwinfo}"
@@ -23,8 +23,13 @@ awk -v mode="$MODE" '
             }
         }
         if ($0 ~ /^[ \t]*procd_open_instance[ \t]*$/ && mode == "install") {
+            # clock-observer.so is optional: without Docker/build it may be
+            # absent. Bind-mount UTC patches still apply via prepare-nitz; the
+            # observer only feeds ats_12 persistence.
             print "    # Begin TopFlow UTC NITZ observer."
-            print "    procd_append_param env LD_PRELOAD=/data/timekeeper/clock-observer.so"
+            print "    if [ -f /data/timekeeper/clock-observer.so ]; then"
+            print "        procd_append_param env LD_PRELOAD=/data/timekeeper/clock-observer.so"
+            print "    fi"
             print "    # End TopFlow UTC NITZ observer."
         }
     }

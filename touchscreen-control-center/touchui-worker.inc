@@ -5,13 +5,13 @@ static long long monotonic_millis(void)
     return (long long)now.tv_sec * 1000LL + now.tv_nsec / 1000000LL;
 }
 
-static int read_mihomo_rss(long *rss_kb)
+static int read_pidfile_rss(const char *pidfile, long *rss_kb)
 {
     FILE *file;
     char path[64], line[160];
     long pid, value;
-    if (!rss_kb) return 0;
-    file = fopen(MIHOMO_PIDFILE, "r");
+    if (!rss_kb || !pidfile) return 0;
+    file = fopen(pidfile, "r");
     if (!file) return 0;
     if (fscanf(file, "%ld", &pid) != 1 || pid <= 1) {
         fclose(file);
@@ -32,51 +32,68 @@ static int read_mihomo_rss(long *rss_kb)
     return 0;
 }
 
-static void update_fast_status(struct mihomo_status *status,
-                               unsigned long long *old_rx, unsigned long long *old_tx,
-                               struct timespec *old_time, int *old_valid)
+static int read_singbox_rss(long *rss_kb)
 {
-    unsigned long long rx = 0, tx = 0;
-    struct timespec now;
+    return read_pidfile_rss(SINGBOX_PIDFILE, rss_kb);
+}
+
+static int read_mihomo_rss(long *rss_kb)
+{
+    return read_pidfile_rss("/data/mihomo/run/mihomo.pid", rss_kb);
+}
+
+static void update_fast_status(struct singbox_status *status)
+{
     struct tm local;
-    double seconds;
     time_t wall;
     long rss_kb;
+    int on_mihomo;
+    /* 流量总量/速率由全量轮询经 manager（/connections 口径）提供；
+     * 快路径只刷 RSS 与时钟（mh-host veth 双向镜像口径已废弃） */
     if (!status || !status->valid) return;
-    if (!status->service_running) status->rss_kb = 0;
-    else if (read_mihomo_rss(&rss_kb)) status->rss_kb = rss_kb;
-    clock_gettime(CLOCK_MONOTONIC, &now);
-    if (read_counter(TRAFFIC_RX, &rx) && read_counter(TRAFFIC_TX, &tx)) {
-        status->rx_bytes = rx; status->tx_bytes = tx;
-        if (*old_valid && rx >= *old_rx && tx >= *old_tx) {
-            seconds = (double)(now.tv_sec - old_time->tv_sec) +
-                      (double)(now.tv_nsec - old_time->tv_nsec) / 1000000000.0;
-            if (seconds > 0.1) {
-                status->rx_rate = (unsigned long long)((rx - *old_rx) / seconds);
-                status->tx_rate = (unsigned long long)((tx - *old_tx) / seconds);
-            }
-        }
-        *old_rx = rx; *old_tx = tx; *old_time = now; *old_valid = 1;
-    } else *old_valid = 0;
+    on_mihomo = !strcmp(status->engine, "mihomo") ||
+                status->mihomo_running ||
+                status->dhcp_points_to_mihomo;
+    if (status->service_running) {
+        if (read_singbox_rss(&rss_kb)) status->rss_kb = rss_kb;
+    } else if (on_mihomo) {
+        /* Do NOT zero manager RSS: service_running is sing-box-only. */
+        if (read_mihomo_rss(&rss_kb)) status->rss_kb = rss_kb;
+    } else {
+        status->rss_kb = 0;
+    }
     wall = time(NULL);
     localtime_r(&wall, &local);
     snprintf(status->updated, sizeof(status->updated), "%02d:%02d:%02d",
              local.tm_hour, local.tm_min, local.tm_sec);
 }
 
-static int action_is_mihomo(int action)
+static int action_is_singbox(int action)
 {
-    return action >= ACTION_SERVICE_ENABLE && action <= ACTION_MODE_DIRECT;
+    return action >= ACTION_SERVICE_START && action <= ACTION_SERVICE_RESTART;
+}
+
+static int action_is_engine(int action)
+{
+    return action == ACTION_ENGINE_SWITCHOVER ||
+           action == ACTION_ENGINE_ROLLBACK;
 }
 
 static enum page_id message_page_for_action(int action)
 {
-    return action_is_mihomo(action) ? PAGE_MIHOMO : PAGE_DEVICE;
+    if (action_is_singbox(action) || action_is_engine(action)) return PAGE_SINGBOX;
+    if (action == ACTION_WAN_MODE_AUTO || action == ACTION_WAN_MODE_SHARED ||
+        action == ACTION_WAN_MODE_CUSTOM)
+        return PAGE_WANBAL;
+    if (action == ACTION_BALANCE_REFRESH) return PAGE_BALANCE;
+    return PAGE_DEVICE;
 }
 
 static enum page_id message_page_for_page(enum page_id page)
 {
-    if (page == PAGE_MIHOMO) return PAGE_MIHOMO;
+    if (page == PAGE_SINGBOX) return PAGE_SINGBOX;
+    if (page == PAGE_WANBAL) return PAGE_WANBAL;
+    if (page == PAGE_BALANCE) return PAGE_BALANCE;
     if (page == PAGE_DEVICE || page == PAGE_COOLING_CURVE ||
         page == PAGE_DIAGNOSTICS) return PAGE_DEVICE;
     return PAGE_STOCK;
@@ -95,29 +112,137 @@ static void publish_message(int action, int ok, const char *message)
 static void execute_action(int action, int action_band,
                            int action_value, int action_value2,
                            const struct fan_curve_point_status *curve,
-                           int curve_count)
+                           int curve_count, int fan_need_default)
 {
     const char *arg1 = NULL, *arg2 = NULL;
     const char *control = NULL;
     char output[4096], message[160], control_buffer[1024];
     int ok;
     switch (action) {
-    case ACTION_SERVICE_ENABLE: arg1 = "service-set"; arg2 = "true"; break;
-    case ACTION_SERVICE_DISABLE: arg1 = "service-set"; arg2 = "false"; break;
-    case ACTION_TRANSPARENT_ON: arg1 = "transparent-set"; arg2 = "true"; break;
-    case ACTION_TRANSPARENT_OFF: arg1 = "transparent-set"; arg2 = "false"; break;
-    case ACTION_MODE_RULE: arg1 = "proxy-mode-set"; arg2 = "rule"; break;
-    case ACTION_MODE_GLOBAL: arg1 = "proxy-mode-set"; arg2 = "global"; break;
-    case ACTION_MODE_DIRECT: arg1 = "proxy-mode-set"; arg2 = "direct"; break;
+    case ACTION_SERVICE_START: arg1 = "service-start"; break;
+    case ACTION_SERVICE_STOP: arg1 = "service-stop"; break;
+    case ACTION_SERVICE_RESTART: arg1 = "service-restart"; break;
+    case ACTION_ENGINE_SWITCHOVER: arg1 = "switchover"; break;
+    case ACTION_ENGINE_ROLLBACK: arg1 = "rollback"; break;
+    case ACTION_WAN_MODE_AUTO: arg1 = "wan-mode-set"; arg2 = "auto"; break;
+    case ACTION_WAN_MODE_SHARED: arg1 = "wan-mode-set"; arg2 = "shared"; break;
+    case ACTION_WAN_MODE_CUSTOM: {
+        /* 手动选池：wan-mode-set custom <tcp_csv> <udp_csv> <overflow>
+         * 入队参数 = (overflow, tcp 掩码, udp 掩码)，
+         * 掩码 bit0=5G bit1=4G#1 bit2=4G#2。 */
+        char tcp_csv[32], udp_csv[32], overflow[4];
+        const char *args[5];
+        wanbal_pool_csv(action_value & 7, tcp_csv, sizeof(tcp_csv));
+        wanbal_pool_csv(action_value2 & 7, udp_csv, sizeof(udp_csv));
+        safe_copy(overflow, sizeof(overflow), action_band ? "1" : "0");
+        args[0] = "wan-mode-set";
+        args[1] = "custom";
+        args[2] = tcp_csv;
+        args[3] = udp_csv;
+        args[4] = overflow;
+        publish_message(action, 1, "正在执行，请稍候…");
+        if (run_singbox_manager_args(output, sizeof(output), args, 5) != 0) {
+            publish_message(action, 0, "管理后端执行失败");
+            return;
+        }
+        ok = json_bool(output, "ok", 0);
+        if (!json_string(output, "message", message, sizeof(message)))
+            safe_copy(message, sizeof(message), ok ? "分流已应用" : "操作失败");
+        publish_message(action, ok, message);
+        return;
+    }
+    case ACTION_BALANCE_REFRESH: {
+        publish_message(action, 1, "正在刷新…");
+        if (run_balance_watch_once(output, sizeof(output)) != 0) {
+            publish_message(action, 0, "余量刷新失败");
+            return;
+        }
+        pthread_mutex_lock(&shared_lock);
+        force_balance_refresh = 1;
+        pthread_mutex_unlock(&shared_lock);
+        publish_message(action, 1, "余量已刷新");
+        return;
+    }
     case ACTION_FAN_FACTORY:
-        control = "{\"action\":\"cooling.fan.set_mode\",\"params\":{\"mode\":\"automatic\"}}";
-        break;
-    case ACTION_FAN_CUSTOM:
-        control = "{\"action\":\"cooling.fan.set_mode\",\"params\":{\"mode\":\"custom\"}}";
-        break;
+        /* 原厂：恢复原厂 44/48/53°C 曲线后切 automatic
+         * datad 的 automatic 仍使用当前曲线，必须从常闭/自定义恢复 */
+        if (!post_datad_control(
+                "{\"action\":\"cooling.fan.set_curve\",\"params\":{\"points\":["
+                "{\"temperature\":20,\"pwm\":0},"
+                "{\"temperature\":44,\"pwm\":76},"
+                "{\"temperature\":48,\"pwm\":128},"
+                "{\"temperature\":53,\"pwm\":179},"
+                "{\"temperature\":80,\"pwm\":255}]}}",
+                output, sizeof(output)) ||
+            !post_datad_control(
+                "{\"action\":\"cooling.fan.set_mode\",\"params\":{\"mode\":\"automatic\"}}",
+                output, sizeof(output))) {
+            publish_message(action, 0, "设备控制接口执行失败");
+            return;
+        }
+        publish_message(action, 1, "已切换至原厂自动模式");
+        return;
+    case ACTION_FAN_CUSTOM: {
+        /* need_default 以入队时 UI 线程快照为准（M17）：worker 不得无锁读 ui_network_status */
+        int need_default = fan_need_default;
+        if (need_default) {
+            if (!post_datad_control(
+                    "{\"action\":\"cooling.fan.set_curve\",\"params\":{\"points\":["
+                    "{\"temperature\":40,\"pwm\":0},"
+                    "{\"temperature\":44,\"pwm\":0},"
+                    "{\"temperature\":45,\"pwm\":13},"
+                    "{\"temperature\":46,\"pwm\":20},"
+                    "{\"temperature\":47,\"pwm\":28},"
+                    "{\"temperature\":48,\"pwm\":36},"
+                    "{\"temperature\":50,\"pwm\":51},"
+                    "{\"temperature\":70,\"pwm\":179}]}}",
+                    output, sizeof(output))) {
+                publish_message(action, 0, "设备控制接口执行失败");
+                return;
+            }
+        }
+        if (!post_datad_control(
+                "{\"action\":\"cooling.fan.set_mode\",\"params\":{\"mode\":\"custom\"}}",
+                output, sizeof(output))) {
+            publish_message(action, 0, "设备控制接口执行失败");
+            return;
+        }
+        publish_message(action, 1, need_default ?
+                        "已恢复默认自定义曲线" : "已切换至自定义模式");
+        return;
+    }
     case ACTION_FAN_ALWAYS:
-        control = "{\"action\":\"cooling.fan.set_mode\",\"params\":{\"mode\":\"always_on\"}}";
-        break;
+        if (!post_datad_control(
+                "{\"action\":\"cooling.fan.set_mode\",\"params\":{\"mode\":\"always_on\"}}",
+                output, sizeof(output))) {
+            publish_message(action, 0, "设备控制接口执行失败");
+            return;
+        }
+        publish_message(action, 1, "已切换至常开模式");
+        return;
+    case ACTION_FAN_OFF:
+        /* 常闭：零曲线 + custom，datad 即使 enabled=false 也会按曲线写 pwm */
+        if (!post_datad_control(
+                "{\"action\":\"cooling.fan.set_curve\",\"params\":{\"points\":["
+                "{\"temperature\":20,\"pwm\":0},{\"temperature\":80,\"pwm\":0}]}}",
+                output, sizeof(output))) {
+            publish_message(action, 0, "设备控制接口执行失败");
+            return;
+        }
+        if (!post_datad_control(
+                "{\"action\":\"cooling.fan.set_mode\",\"params\":{\"mode\":\"custom\"}}",
+                output, sizeof(output))) {
+            publish_message(action, 0, "设备控制接口执行失败");
+            return;
+        }
+        if (!post_datad_control(
+                "{\"action\":\"cooling.fan.set_enabled\",\"params\":{\"enabled\":false}}",
+                output, sizeof(output))) {
+            publish_message(action, 0, "设备控制接口执行失败");
+            return;
+        }
+        publish_message(action, 1, "风扇已常闭");
+        return;
     case ACTION_FAN_CURVE_APPLY: {
         size_t used = 0;
         int written;
@@ -167,7 +292,7 @@ static void execute_action(int action, int action_band,
         if (!post_datad_control(control, output, sizeof(output))) {
             publish_message(action, 0, "设备控制接口执行失败"); return;
         }
-    } else if (run_manager(output, sizeof(output), arg1, arg2) != 0) {
+    } else if (run_singbox_manager(output, sizeof(output), arg1, arg2) != 0) {
         publish_message(action, 0, "管理后端执行失败"); return;
     }
     ok = json_bool(output, "ok", 0);
@@ -182,21 +307,21 @@ static void execute_action(int action, int action_band,
 static void *status_worker(void *unused)
 {
     unsigned long long old_rx = 0, old_tx = 0;
-    struct timespec old_time = {0, 0};
-    struct mihomo_status cached;
+    struct singbox_status cached;
     struct network_status network_cached;
     char *network_state = NULL;
     int old_valid = 0, cached_valid = 0, consecutive_failures = 0;
     int network_cached_valid = 0, network_failures = 0;
     long long next_fast_poll = 0, next_full_poll = 0, next_network_poll = 0;
-    long long next_wifi_poll = 0;
+    long long next_wifi_poll = 0, next_balance_poll = 0;
+    long long last_full_sample_ms = 0;
     memset(&cached, 0, sizeof(cached));
     memset(&network_cached, 0, sizeof(network_cached));
     (void)unused;
     for (;;) {
         int action = ACTION_NONE, action_band = -1;
         int action_value = 0, action_value2 = 0, refresh = 0;
-        int action_curve_count = 0;
+        int action_curve_count = 0, action_fan_need_default = 0;
         struct fan_curve_point_status action_curve[TOUCHUI_FAN_CURVE_MAX];
         long long now;
         pthread_mutex_lock(&shared_lock);
@@ -207,6 +332,7 @@ static void *status_worker(void *unused)
             action_value2 = shared_action_value2;
             action_curve_count = shared_action_curve_count;
             memcpy(action_curve, shared_action_curve, sizeof(action_curve));
+            action_fan_need_default = shared_action_fan_need_default;
             shared_action_curve_count = 0;
             shared_action_running = 1;
             shared_running_action = action;
@@ -217,7 +343,7 @@ static void *status_worker(void *unused)
         pthread_mutex_unlock(&shared_lock);
         if (action != ACTION_NONE) {
             execute_action(action, action_band, action_value, action_value2,
-                           action_curve, action_curve_count);
+                           action_curve, action_curve_count, action_fan_need_default);
             pthread_mutex_lock(&shared_lock);
             shared_action_running = 0;
             shared_running_action = ACTION_NONE;
@@ -226,15 +352,54 @@ static void *status_worker(void *unused)
             next_full_poll = 0;
             next_network_poll = 0;
             next_wifi_poll = 0;
+            force_wanbal_refresh = 1;
         }
         now = monotonic_millis();
         if (refresh) next_full_poll = 0;
+        if (force_wanbal_refresh || now >= next_full_poll) {
+            struct wanbal_status wanbal_fresh;
+            static struct wanbal_status wanbal_cached;
+            static int wanbal_cached_valid, wanbal_failures;
+            if (collect_wanbal_status(&wanbal_fresh)) {
+                wanbal_cached = wanbal_fresh;
+                wanbal_cached_valid = 1;
+                wanbal_failures = 0;
+            } else if (wanbal_cached_valid) {
+                wanbal_failures++;
+                if (wanbal_failures >= STATUS_STALE_FAILURES)
+                    wanbal_cached.stale = 1;
+            }
+            pthread_mutex_lock(&shared_lock);
+            if (wanbal_cached_valid) shared_wanbal_status = wanbal_cached;
+            else memset(&shared_wanbal_status, 0, sizeof(shared_wanbal_status));
+            shared_wanbal_generation++;
+            force_wanbal_refresh = 0;
+            pthread_mutex_unlock(&shared_lock);
+        }
         if (now >= next_full_poll) {
-            struct mihomo_status fresh;
-            if (collect_manager_status(&fresh)) {
+            struct singbox_status fresh;
+            if (collect_singbox_status(&fresh)) {
+                /* 速率用“距上次全量采样的实际间隔”，避免 action 后
+                 * next_full_poll=0 立刻采样时仍按固定 5s 估算。
+                 * 过短间隔回退名义 5s，防止 force-poll 抖动尖峰。 */
+                long long sample_now = monotonic_millis();
+                long long elapsed = FULL_STATUS_INTERVAL_MS;
+                if (last_full_sample_ms > 0 && sample_now > last_full_sample_ms) {
+                    long long delta = sample_now - last_full_sample_ms;
+                    if (delta >= 500 && delta <= 60000)
+                        elapsed = delta;
+                }
+                consecutive_failures = 0; /* like network_failures on success */
+                if (old_valid && fresh.rx_bytes >= old_rx && fresh.tx_bytes >= old_tx) {
+                    fresh.rx_rate = (unsigned long long)
+                        (((long long)(fresh.rx_bytes - old_rx) * 1000LL) / elapsed);
+                    fresh.tx_rate = (unsigned long long)
+                        (((long long)(fresh.tx_bytes - old_tx) * 1000LL) / elapsed);
+                }
+                old_rx = fresh.rx_bytes; old_tx = fresh.tx_bytes; old_valid = 1;
+                last_full_sample_ms = sample_now;
                 cached = fresh;
                 cached_valid = 1;
-                consecutive_failures = 0;
             } else if (cached_valid) {
                 consecutive_failures++;
                 if (consecutive_failures >= STATUS_STALE_FAILURES) cached.stale = 1;
@@ -246,7 +411,7 @@ static void *status_worker(void *unused)
         }
         if (now >= next_fast_poll) {
             if (cached_valid)
-                update_fast_status(&cached, &old_rx, &old_tx, &old_time, &old_valid);
+                update_fast_status(&cached);
             pthread_mutex_lock(&shared_lock);
             if (cached_valid) shared_status = cached;
             else memset(&shared_status, 0, sizeof(shared_status));
@@ -286,6 +451,27 @@ static void *status_worker(void *unused)
                 pthread_mutex_unlock(&shared_lock);
             }
             next_wifi_poll = monotonic_millis() + WIFI_STATUS_INTERVAL_MS;
+        }
+        if (force_balance_refresh || now >= next_balance_poll) {
+            struct balance_status balance_fresh;
+            static struct balance_status balance_cached;
+            static int balance_cached_valid, balance_failures;
+            if (collect_balance_status(&balance_fresh)) {
+                balance_cached = balance_fresh;
+                balance_cached_valid = 1;
+                balance_failures = 0;
+            } else if (balance_cached_valid) {
+                balance_failures++;
+                if (balance_failures >= STATUS_STALE_FAILURES)
+                    balance_cached.stale = 1;
+            }
+            pthread_mutex_lock(&shared_lock);
+            if (balance_cached_valid) shared_balance_status = balance_cached;
+            else memset(&shared_balance_status, 0, sizeof(shared_balance_status));
+            shared_balance_generation++;
+            force_balance_refresh = 0;
+            pthread_mutex_unlock(&shared_lock);
+            next_balance_poll = monotonic_millis() + BALANCE_STATUS_INTERVAL_MS;
         }
         usleep(50000);
     }

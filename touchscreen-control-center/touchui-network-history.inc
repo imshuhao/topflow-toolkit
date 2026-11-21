@@ -80,17 +80,17 @@ static void refresh_network_trend_ui(void)
     struct modem_status *modem;
     char rsrp[24], snr[24], down[24], up[24], text[112];
     if (!network_detail_trend_page) return;
-    backend = network_display_order[network_detail_index];
+    backend = network_backend_index(network_detail_index);
     history = &network_history[backend];
     modem = &ui_network_status.modems[backend];
     format_metric_int(modem->rsrp, rsrp, sizeof(rsrp));
     format_metric_double(modem->snr, snr, sizeof(snr));
     snprintf(text, sizeof(text), "RSRP %s dBm · SNR %s dB", rsrp, snr);
-    lv_label_set_text_p(network_trend_signal_summary, text);
+    set_label_text_if_changed(network_trend_signal_summary, text);
     format_rate_compact(modem->rx_rate, down, sizeof(down));
     format_rate_compact(modem->tx_rate, up, sizeof(up));
     snprintf(text, sizeof(text), "↓ %s · ↑ %s", down, up);
-    lv_label_set_text_p(network_trend_rate_summary, text);
+    set_label_text_if_changed(network_trend_rate_summary, text);
     if (lv_chart_set_next_value_p && network_trend_rsrp_chart &&
         network_trend_rsrp_series) {
         lv_chart_set_next_value_p(network_trend_rsrp_chart,
@@ -119,6 +119,6 @@ static void refresh_network_trend_ui(void)
         const struct network_event *event = history_event_at(history, i);
         if (event) snprintf(text, sizeof(text), "%s  %s", event->time, event->text);
         else safe_copy(text, sizeof(text), i ? "" : "暂无切换事件");
-        lv_label_set_text_p(network_trend_event_labels[i], text);
+        set_label_text_if_changed(network_trend_event_labels[i], text);
     }
 }

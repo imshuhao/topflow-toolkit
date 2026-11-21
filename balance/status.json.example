@@ -1,0 +1,42 @@
+{
+  "ok": false,
+  "updated_at": "2026-11-05T15:00:00+08:00",
+  "updated": "15:00:00",
+  "error": "等待首次查询",
+  "cards": [
+    {
+      "id": "unicom-main",
+      "phone": "186****0000",
+      "phone_tail": "0000",
+      "operator": "unicom",
+      "label": "联通免流",
+      "ok": false,
+      "error": "尚未查询",
+      "general_remain_kb": 0,
+      "general_total_kb": 0,
+      "directed_remain_kb": 0,
+      "directed_total_kb": 0,
+      "jump_delta_kb": 0,
+      "free_delta_kb": 0,
+      "jump_today_kb": 0,
+      "updated_at": "2026-11-05T15:00:00+08:00"
+    },
+    {
+      "id": "telecom-main",
+      "phone": "189****0000",
+      "phone_tail": "0000",
+      "operator": "telecom",
+      "label": "电信免流",
+      "ok": false,
+      "error": "尚未查询",
+      "general_remain_kb": 0,
+      "general_total_kb": 0,
+      "directed_remain_kb": 0,
+      "directed_total_kb": 0,
+      "jump_delta_kb": 0,
+      "free_delta_kb": 0,
+      "jump_today_kb": 0,
+      "updated_at": "2026-11-05T15:00:00+08:00"
+    }
+  ]
+}

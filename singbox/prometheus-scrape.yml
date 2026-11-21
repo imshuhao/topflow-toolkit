@@ -1,0 +1,48 @@
+# Prometheus scrape configuration for TopFlow MU5252 B20 (sing-box + 3 WANs).
+#
+# Device: 192.168.0.1
+#   /observability/v1/metrics  sing-box 1.14.4-reF1nd (Clash controller :9999)
+#   /metrics                   wan-metrics-exporter.sh --serve (busybox httpd :9102)
+#
+# The project rule is clash_api.secret="" (HANDOVER §29), so no Authorization
+# header is sent.  If a secret is ever enabled, uncomment the authorization
+# block and keep the token in a root-only file.  Prometheus caches the file
+# contents; reload/restart Prometheus after rotating it.
+#
+# The controller listens on 0.0.0.0:9999.  Firewall the port to the monitoring
+# host only: without a secret the observability API (including recent
+# connections) is readable by anyone who can reach it.
+
+global:
+  scrape_interval: 15s
+  scrape_timeout: 10s
+  evaluation_interval: 15s
+
+scrape_configs:
+  - job_name: singbox-b20
+    metrics_path: /observability/v1/metrics
+    scheme: http
+    static_configs:
+      - targets: ['192.168.0.1:9999']
+        labels:
+          instance: singbox-b20
+          device: topflow-mu5252
+          site: home
+    # authorization:
+    #   type: Bearer
+    #   credentials_file: /etc/prometheus/singbox.token
+
+  # Per-card counters + mwan3 online state.  Start the exporter on the device:
+  #   nohup sh /data/sing-box/wan-metrics-exporter.sh --serve 9102 \
+  #     >/tmp/wan-exporter.log 2>&1 &
+  # If it is not deployed yet, comment this job out; the custom three-card
+  # panels stay empty while `up{job="wan-b20"}` is 0.
+  - job_name: wan-b20
+    metrics_path: /metrics
+    scheme: http
+    static_configs:
+      - targets: ['192.168.0.1:9102']
+        labels:
+          instance: wan-b20
+          device: topflow-mu5252
+          site: home

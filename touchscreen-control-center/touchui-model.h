@@ -5,22 +5,25 @@
 
 enum action_id {
     ACTION_NONE = 0,
-    ACTION_SERVICE_ENABLE,
-    ACTION_SERVICE_DISABLE,
-    ACTION_TRANSPARENT_ON,
-    ACTION_TRANSPARENT_OFF,
-    ACTION_MODE_RULE,
-    ACTION_MODE_GLOBAL,
-    ACTION_MODE_DIRECT,
+    ACTION_SERVICE_START,
+    ACTION_SERVICE_STOP,
+    ACTION_SERVICE_RESTART,
     ACTION_FAN_FACTORY,
     ACTION_FAN_CUSTOM,
     ACTION_FAN_ALWAYS,
+    ACTION_FAN_OFF,
     ACTION_FAN_CURVE_APPLY,
     ACTION_LIQUID_AUTO,
     ACTION_LIQUID_LOW,
     ACTION_LIQUID_HIGH,
     ACTION_WIFI_APPLY,
-    ACTION_STATE_REFRESH
+    ACTION_STATE_REFRESH,
+    ACTION_WAN_MODE_AUTO,
+    ACTION_WAN_MODE_SHARED,
+    ACTION_WAN_MODE_CUSTOM,
+    ACTION_BALANCE_REFRESH,
+    ACTION_ENGINE_SWITCHOVER,
+    ACTION_ENGINE_ROLLBACK
 };
 
 enum page_id {
@@ -29,10 +32,13 @@ enum page_id {
     PAGE_NETWORK,
     PAGE_NETWORK_DETAIL,
     PAGE_NETWORK_IDENTITY,
-    PAGE_MIHOMO,
+    PAGE_SINGBOX,
+    PAGE_WANBAL,
+    PAGE_BALANCE,
     PAGE_DEVICE,
     PAGE_COOLING_CURVE,
-    PAGE_DIAGNOSTICS
+    PAGE_DIAGNOSTICS,
+    PAGE_CHARGE
 };
 
 enum traffic_direction {
@@ -57,23 +63,90 @@ struct fan_curve_point_status {
     int speed_percent;
 };
 
-struct mihomo_status {
+struct singbox_status {
     int valid;
     int stale;
-    int service_enabled;
     int service_running;
-    int start_pending;
-    int transparent_enabled;
-    int dhcp_enabled;
-    int controller_listening;
+    int api_ok;
+    int tun_up;
+    int capture_ok;
+    int dhcp_ok;
+    int providers;
+    int watchdog_running;
+    int keeper_running;
+    int manual_stop;
+    int mihomo_running;
+    int dhcp_points_to_mihomo;
     long rss_kb;
     unsigned long long rx_bytes;
     unsigned long long tx_bytes;
     unsigned long long rx_rate;
     unsigned long long tx_rate;
-    char proxy_mode[16];
+    char service_state[20];
     char version[32];
+    char tun_addr[40];
+    char inbound_mode[8];
+    char capture_plane[24];
+    char engine[16];
     char updated[16];
+};
+
+/* WAN balance preset shown on the 分流 page (auto | shared | custom). */
+struct wanbal_status {
+    int valid;
+    int stale;
+    char preset[16];
+    char mode[16];
+    char tcp_pool[64];
+    char udp_pool[64];
+    char tcp_weights[96];
+    char udp_weights[96];
+    char degraded[64];
+    char quality[4];
+    char bias[4];
+    /* 手动选池（preset=custom）：overflow 为 0/1；tcp_state/udp_state 是
+     * ok|partial|blocked|spill|unknown；tcp_live/udp_live 是选中池里在线卡数。 */
+    char overflow[8];
+    char tcp_state[12];
+    char udp_state[12];
+    char tcp_live[8];
+    char udp_live[8];
+    char updated[16];
+};
+
+#define BALANCE_CARD_COUNT 2
+
+struct balance_card_status {
+    int ok;
+    char id[40];
+    char operator_name[16];
+    char label[40];
+    char phone_tail[8];
+    char error[96];
+    long general_remain_kb;
+    long general_total_kb;
+    long general_used_kb;
+    long directed_remain_kb;
+    long directed_total_kb;
+    long directed_used_kb;
+    int directed_unlimited;
+    long directed_unlimit_used_kb;
+    long jump_delta_kb;
+    long free_delta_kb;
+    long jump_today_kb;
+};
+
+/* Carrier package remain / jump-point snapshot from /data/local/balance. */
+struct balance_status {
+    int valid;
+    int stale;
+    int ok;
+    int card_count;
+    int interval_sec;
+    char updated[16];   /* 本次查询 HH:MM:SS */
+    char next[16];      /* 下次查询 HH:MM:SS */
+    char error[96];
+    struct balance_card_status cards[BALANCE_CARD_COUNT];
 };
 
 struct modem_status {
@@ -151,6 +224,8 @@ struct modem_status {
 
 struct device_status {
     int valid;
+    char kernel_release[48];
+    char os_release[48];
     long uptime;
     int cpu_usage;
     int cpu_temp;
@@ -209,6 +284,17 @@ struct device_status {
     int nfc_enabled;
 };
 
+static inline int fan_custom_curve_is_off(const struct device_status *device)
+{
+    int i;
+    if (!device || strcmp(device->fan_mode, "custom")) return 0;
+    if (device->fan_custom_curve_count < 1) return 1;
+    for (i = 0; i < device->fan_custom_curve_count; i++) {
+        if (device->fan_custom_curve[i].pwm > 0) return 0;
+    }
+    return 1;
+}
+
 struct wifi_power_band_status {
     int valid;
     int enabled;
@@ -260,6 +346,28 @@ struct page_shell {
     lv_obj_t *footer_label;
     lv_obj_t *clock_label;
     enum page_id id;
+};
+
+/* 原型里的「徽标 / 胶囊」：圆角底 + 居中文字（badge.ok / warn / soft …）。 */
+struct badge_component {
+    lv_obj_t *panel;
+    lv_obj_t *label;
+};
+
+/* 原型里的水平进度条（有效权重、电量条）：轨道 + 填充。 */
+struct hbar_component {
+    lv_obj_t *track;
+    lv_obj_t *fill;
+    int width;
+    int height;
+};
+
+/* 运行时位图图标（原型 SVG 线稿的替代）：ASCII 行阵 → RGB565+alpha。 */
+#define TOUCHUI_GLYPH_MAX_SIDE 32
+struct glyph_image {
+    uint32_t header;
+    uint32_t data_size;
+    const unsigned char *data;
 };
 
 struct menu_module {

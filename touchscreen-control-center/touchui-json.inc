@@ -6,28 +6,13 @@ static void safe_copy(char *dst, size_t size, const char *src)
 
 static int json_value(const char *json, const char *key, const char **value)
 {
-    const char *p, *start, *separator;
-    size_t key_length;
-    int depth = 0;
-    if (!json || !key || !value) return 0;
-    key_length = strlen(key);
-    /* Match members of this object, never similarly named nested members. */
-    for (p = json; *p; p++) {
-        if (*p == '{' || *p == '[') { depth++; continue; }
-        if (*p == '}' || *p == ']') {
-            if (--depth <= 0) break;
-            continue;
-        }
-        if (*p != '"') continue;
-        start = ++p;
-        while (*p && *p != '"') {
-            if (*p == '\\' && p[1]) p++;
-            p++;
-        }
-        if (!*p) return 0;
-        if (depth != 1 || (size_t)(p - start) != key_length ||
-            memcmp(start, key, key_length)) continue;
-        separator = p + 1;
+    char pattern[80];
+    const char *p, *separator;
+    size_t pattern_length;
+    snprintf(pattern, sizeof(pattern), "\"%s\"", key);
+    pattern_length = strlen(pattern);
+    for (p = json; (p = strstr(p, pattern)) != NULL; p += pattern_length) {
+        separator = p + pattern_length;
         while (*separator == ' ' || *separator == '\t' ||
                *separator == '\r' || *separator == '\n') separator++;
         if (*separator != ':') continue;
@@ -231,39 +216,26 @@ static void parse_path_targets(const char *path, struct modem_status *status)
 
 static int modem_json_object(const char *json, int index, char *out, size_t size)
 {
-    static const char *ids[NETWORK_MODEM_COUNT] = {"x75", "v3e1", "v3e2"};
-    const char *p;
-    char id[32];
+    static const char *markers[NETWORK_MODEM_COUNT] = {
+        "{\"id\":\"x75\",\"role\":\"integrated_5g\"",
+        "{\"id\":\"v3e1\",\"role\":\"external_4g\"",
+        "{\"id\":\"v3e2\",\"role\":\"external_4g\""
+    };
+    const char *start;
     if (index < 0 || index >= NETWORK_MODEM_COUNT) return 0;
-    if (!json_value(json, "modems", &p) || *p++ != '[') return 0;
-    while (*p) {
-        while (*p == ' ' || *p == '\t' || *p == '\r' ||
-               *p == '\n' || *p == ',') p++;
-        if (*p != '{' || !copy_json_object(p, out, size)) return 0;
-        if (json_string(out, "id", id, sizeof(id)) && !strcmp(id, ids[index]))
-            return 1;
-        p += strlen(out);
-    }
-    return 0;
+    start = strstr(json, markers[index]);
+    return start && copy_json_object(start, out, size);
 }
 
 static int json_object_by_id(const char *json, const char *id,
                              char *out, size_t size)
 {
-    char candidate[64];
-    const char *p;
+    char marker[64];
+    const char *start;
     if (!json || !id || !*id) return 0;
-    for (p = json; *p; p++) {
-        if (*p == '"') {
-            for (p++; *p && *p != '"'; p++)
-                if (*p == '\\' && p[1]) p++;
-            if (!*p) break;
-        } else if (*p == '{' && json_string(p, "id", candidate, sizeof(candidate)) &&
-                   !strcmp(candidate, id)) {
-            return copy_json_object(p, out, size);
-        }
-    }
-    return 0;
+    snprintf(marker, sizeof(marker), "{\"id\":\"%s\"", id);
+    start = strstr(json, marker);
+    return start && copy_json_object(start, out, size);
 }
 
 static int json_output_complete(const char *json);

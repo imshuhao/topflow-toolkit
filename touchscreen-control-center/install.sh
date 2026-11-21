@@ -6,7 +6,7 @@ HERE="$(CDPATH='' cd -- "$(dirname -- "$0")" && pwd)"
 ADB_BIN="${ADB_BIN:-adb}"
 DEVICE_DIR=/data/touchscreen-control-center
 INIT_FILE=/etc/init.d/touchscreen-control-center
-EXPECTED_DEVUI_SHA256=781e3c6ffa2a9db4d61a3cf1bb38461131dc3faed07499a2c9360bc582040dd2
+EXPECTED_DEVUI_SHA256=a5d40b1c65acd5fb74f207d4d0a37b879a36073dcff9b1a33fb2a3b08d7a66a5
 
 if [ ! -f "$HERE/touchui-hook.so" ]; then
     "$HERE/build.sh"
@@ -62,6 +62,7 @@ device_shell "mkdir -p '$DEVICE_DIR' && chmod 0755 '$DEVICE_DIR'"
 "$ADB_BIN" push "$HERE/touchscreen-control-center.init" "$INIT_FILE" >/dev/null
 
 device_shell "chmod 0644 '$DEVICE_DIR/touchui-hook.so'; chmod 0755 '$DEVICE_DIR/start.sh' '$DEVICE_DIR/restore-stock.sh' '$DEVICE_DIR/install-boot-hook.sh' '$DEVICE_DIR/remove-boot-hook.sh' '$INIT_FILE'"
+device_shell "for f in '$DEVICE_DIR/start.sh' '$DEVICE_DIR/restore-stock.sh' '$DEVICE_DIR/install-boot-hook.sh' '$DEVICE_DIR/remove-boot-hook.sh' '$INIT_FILE'; do tr -d '\r' <\"\$f\" >\"\$f.lf\" && cat \"\$f.lf\" >\"\$f\" && rm -f \"\$f.lf\"; done"
 device_shell "$INIT_FILE enable"
 device_shell "$DEVICE_DIR/install-boot-hook.sh"
 device_shell "$INIT_FILE start"

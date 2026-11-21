@@ -1,0 +1,26 @@
+{
+  "proxy": "http://127.0.0.1:7890",
+  "timeout_sec": 25,
+  "cards": [
+    {
+      "id": "unicom-main",
+      "operator": "unicom",
+      "phone": "18600000000",
+      "label": "联通免流",
+      "token_online": "PASTE_TOKEN_ONLINE_HERE",
+      "app_id": "",
+      "limit_re": "",
+      "unlimit_re": ""
+    },
+    {
+      "id": "telecom-main",
+      "operator": "telecom",
+      "phone": "18900000000",
+      "label": "电信免流",
+      "password": "123456",
+      "device_uid": "PASTE_SMS_DEVICE_ID_HERE",
+      "limit_re": "",
+      "unlimit_re": ""
+    }
+  ]
+}

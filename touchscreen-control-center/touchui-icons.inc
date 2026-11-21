@@ -63,13 +63,23 @@ static void draw_traffic_arrow(unsigned char *pixels, int upward,
     }
 }
 
+/* 箭头跟随文字色（原型 .traffic-value 用正文色、.traffic-value.up 用 muted），
+ * 不再用方向色 COLOR_TRAFFIC_UP/DOWN。像素缓冲是主题相关的，主题切换时必须
+ * 用 reset_traffic_icons() 复位重画，否则会沿用上一主题的颜色。 */
 static int init_traffic_icons(void)
 {
     if (traffic_icons_ready) return 1;
-    draw_traffic_arrow(traffic_up_pixels, 1, COLOR_TRAFFIC_UP);
-    draw_traffic_arrow(traffic_down_pixels, 0, COLOR_TRAFFIC_DOWN);
+    draw_traffic_arrow(traffic_up_pixels, 1, COLOR_MUTED);
+    draw_traffic_arrow(traffic_down_pixels, 0, COLOR_TEXT);
     traffic_icons_ready = 1;
     return 1;
+}
+
+/* 主题切换时复位：process_theme_rebuild() 在销毁/重建页面前调用，
+ * 重建出来的图标按新主题重新上色。 */
+static void reset_traffic_icons(void)
+{
+    traffic_icons_ready = 0;
 }
 
 static lv_obj_t *make_traffic_icon(lv_obj_t *parent,
@@ -113,9 +123,12 @@ static struct traffic_value_component make_traffic_value(
     if (component.label) {
         if (font && real_obj_set_style_text_font)
             real_obj_set_style_text_font(component.label, font, 0);
+        /* 数值与箭头同色（原型 .traffic-value 正文色 / .traffic-value.up muted），
+         * 不再用方向色 COLOR_TRAFFIC_*，避免「白↓ / 灰↑ 配蓝绿数字」的花配。
+         * 代理页另有显式覆盖，语义相同。 */
         set_text_color(component.label,
                        direction == TRAFFIC_UP ?
-                       COLOR_TRAFFIC_UP : COLOR_TRAFFIC_DOWN);
+                       COLOR_MUTED : COLOR_TEXT);
     }
     return component;
 }
@@ -187,14 +200,14 @@ static void set_stock_signal_icon(struct signal_icon_component *component,
     component->state = state;
 }
 
-/* Stock B22 header buttons. Assets 025/028 are the released/pressed back
+/* Stock B20 header buttons. Assets 025/028 are the released/pressed back
  * button; assets 131/132 are the released/pressed home button.
  * zte_topsw_devui is a fixed-address non-PIE executable on this firmware;
  * the install preflight and README bind this hook to its verified binary. */
-#define STOCK_BACK_RELEASED ((const void *)(uintptr_t)0x00eefb58u)
-#define STOCK_BACK_PRESSED  ((const void *)(uintptr_t)0x00eefb88u)
-#define STOCK_HOME_RELEASED ((const void *)(uintptr_t)0x00ef01f8u)
-#define STOCK_HOME_PRESSED  ((const void *)(uintptr_t)0x00ef0208u)
+#define STOCK_BACK_RELEASED ((const void *)(uintptr_t)0x00eefbb8u)
+#define STOCK_BACK_PRESSED  ((const void *)(uintptr_t)0x00eefbe8u)
+#define STOCK_HOME_RELEASED ((const void *)(uintptr_t)0x00ef0258u)
+#define STOCK_HOME_PRESSED  ((const void *)(uintptr_t)0x00ef0268u)
 #define LV_IMGBTN_STATE_RELEASED 0
 #define LV_IMGBTN_STATE_PRESSED 1
 

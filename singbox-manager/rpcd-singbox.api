@@ -1,0 +1,46 @@
+#!/bin/sh
+# shellcheck disable=SC2154
+
+. /usr/share/libubox/jshn.sh
+
+MANAGER=/data/singbox-manager/singbox-manager.sh
+
+signature_empty() {
+    json_add_object "$1"
+    json_close_object
+}
+
+case "$1" in
+    list)
+        json_init
+        signature_empty status
+        signature_empty service_start
+        signature_empty service_stop
+        signature_empty service_restart
+        signature_empty config_check
+        signature_empty switchover
+        signature_empty rollback
+        json_add_object logs
+        json_add_int lines 0
+        json_close_object
+        json_dump
+        ;;
+    call)
+        method="$2"
+        read -r input
+        json_load "${input:-{}}"
+        case "$method" in
+            status) exec "$MANAGER" status ;;
+            service_start) exec "$MANAGER" service-start ;;
+            service_stop) exec "$MANAGER" service-stop ;;
+            service_restart) exec "$MANAGER" service-restart ;;
+            config_check) exec "$MANAGER" config-check ;;
+            switchover) exec "$MANAGER" switchover ;;
+            rollback) exec "$MANAGER" rollback ;;
+            logs)
+                json_get_var lines lines
+                exec "$MANAGER" logs "${lines:-120}"
+                ;;
+        esac
+        ;;
+esac

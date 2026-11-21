@@ -1,0 +1,3551 @@
+<!doctype html>
+<html lang="zh-CN" data-screen-theme="night"><head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>TopFlow 触屏控制中心 · 320×480</title>
+<script>
+  try {
+    var savedTheme = localStorage.getItem("topflow-screen-theme");
+    document.documentElement.dataset.screenTheme = savedTheme === "day" ? "day" : "night";
+  } catch (error) {
+    document.documentElement.dataset.screenTheme = "night";
+  }
+</script>
+<style>
+@layer od-layout {
+  [hidden]:not([hidden="until-found" i]) { display: none !important; }
+  dialog:not([open]) { display: none !important; }
+
+  :where(.od-stack,.od-row,.od-row-top,.od-cluster,.od-grid,.od-field,.od-stat,.od-cell,.od-tile) > :where(*) { min-width: 0; }
+
+  .od-stack   { display: flex; flex-direction: column; gap: var(--od-gap, 8px); }
+  .od-row     { display: flex; align-items: center; gap: var(--od-gap, 8px); }
+  .od-row-top { display: flex; align-items: flex-start; gap: var(--od-gap, 8px); }
+  .od-cluster { display: flex; flex-wrap: wrap; align-items: center; gap: var(--od-gap, 8px); }
+  .od-fill    { flex: 1 1 0; min-width: 0; }
+  .od-fixed   { flex: none; }
+  .od-grid    { display: grid; gap: var(--od-gap, 12px); grid-template-columns: repeat(var(--od-cols, 3), minmax(0, 1fr)); }
+
+  .od-stat, .od-field, .od-cell { display: grid; gap: var(--od-gap, 2px); }
+  :where(.od-stat,.od-field,.od-cell) > :where(*) { display: block; }
+  .od-tile { display: grid; grid-template-rows: auto 1fr; }
+  :where(.od-tile) > :where(*) { display: block; }
+
+  .od-media { display: block; width: 100%; height: auto; aspect-ratio: var(--od-ratio, auto); }
+  .od-media-cover { object-fit: cover; }
+
+  .od-icon { display: inline-block; inline-size: var(--od-icon-size, 1em); block-size: var(--od-icon-size, 1em); flex: none; }
+
+  .od-truncate { display: block; max-width: 100%; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+  .od-clamp-2, .od-clamp-3 { display: -webkit-box; -webkit-box-orient: vertical; overflow: hidden; overflow-wrap: anywhere; }
+  .od-clamp-2 { -webkit-line-clamp: 2; }
+  .od-clamp-3 { -webkit-line-clamp: 3; }
+  .od-lines-2 { min-height: calc(2 * 1.4em); }
+  .od-nowrap  { white-space: nowrap; }
+  .od-keep    { word-break: keep-all; overflow-wrap: anywhere; }
+
+  .od-screen { display: grid; grid-template-rows: auto minmax(0, 1fr) auto; height: 100%; }
+  .od-scroll { overflow-y: auto; overscroll-behavior: contain; min-height: 0; }
+
+  .od-rail { display: flex; gap: var(--od-gap, 8px); overflow-x: auto; scroll-snap-type: x proximity; scrollbar-width: none;
+             padding-inline: var(--od-rail-pad, 16px); scroll-padding-inline: var(--od-rail-pad, 16px); }
+  .od-rail::-webkit-scrollbar { display: none; }
+  :where(.od-rail) > :where(*) { flex: none; scroll-snap-align: start; }
+  :where(.od-rail) > :where(:last-child) { margin-inline-end: var(--od-rail-pad, 16px); }
+
+  .od-spacer { flex: none; visibility: hidden; pointer-events: none; }
+  .od-touch  { min-width: 44px; min-height: 44px; }
+}
+:root [hidden]:where(:not([hidden="until-found" i])) { display: none; }
+
+*, *::before, *::after { box-sizing: border-box; }
+html, body { min-height: 100%; }
+body {
+  margin: 0;
+  background: #0E1113;
+  color: #E8ECEB;
+  font-family: "Noto Sans SC", "Source Han Sans SC", "PingFang SC", "Microsoft YaHei", sans-serif;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+button { font: inherit; }
+
+.stage {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  padding: 24px 16px;
+}
+.stage-head { text-align: center; }
+.stage-title {
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: #EDF1F0;
+}
+.stage-meta {
+  margin-top: 4px;
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  color: #8E9A98;
+}
+.device-wrap {
+  padding: 10px;
+  border-radius: 22px;
+  background: #191E20;
+  border: 1px solid #2A3133;
+  box-shadow: 0 22px 60px rgba(0, 0, 0, 0.5);
+}
+.screen-holder {
+  position: relative;
+  width: calc(320px * var(--scale, 1.5));
+  height: calc(480px * var(--scale, 1.5));
+  overflow: hidden;
+  border-radius: 10px;
+  background: #07090A;
+}
+.stage-foot {
+  font-size: 10px;
+  line-height: 1.5;
+  letter-spacing: 0.02em;
+  color: #77817F;
+  text-align: center;
+}
+.stage-demo {
+  position: fixed;
+  top: 14px;
+  right: 16px;
+  z-index: 30;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px;
+  border: 1px solid #2A3133;
+  border-radius: 9px;
+  background: #14191B;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.4);
+}
+.stage-demo-label {
+  padding: 0 4px;
+  font-size: 9px;
+  letter-spacing: 0.04em;
+  color: #8E9A98;
+}
+.stage-demo button {
+  height: 22px;
+  padding: 0 7px;
+  border: 1px solid #2A3133;
+  border-radius: 6px;
+  background: transparent;
+  color: #9BA9AA;
+  font-size: 9.5px;
+  cursor: pointer;
+}
+.stage-demo button[aria-pressed="true"] {
+  border-color: #35E0B0;
+  background: #0E2A25;
+  color: #35E0B0;
+}
+@media (max-width: 560px) {
+  .stage-demo { top: 8px; right: 8px; }
+  .stage-demo-label { display: none; }
+}
+
+/* Product surface: 320 x 480 logical screen */
+.screen {
+  --bg: #07090A;
+  --card: #12171A;
+  --card-2: #1A2124;
+  --border: #293336;
+  --text: #F2F6F5;
+  --muted: #9BA9AA;
+  --accent: #35E0B0;
+  --accent-ink: #06201A;
+  --accent-soft: #0E2A25;
+  --ok: #4ADE80;
+  --ok-soft: #10281D;
+  --warn: #F5C451;
+  --warn-soft: #2A2310;
+  --danger: #FF7B72;
+  --danger-soft: #2C1414;
+  --track: #334044;
+  --scrim: rgba(0, 0, 0, 0.58);
+  --toast-bg: #1A2124;
+  --toast-text: #F2F6F5;
+  --shadow: 0 1px 0 rgba(255, 255, 255, 0.02);
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 320px;
+  height: 480px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  transform: scale(var(--scale, 1.5));
+  transform-origin: top left;
+  background: var(--bg);
+  color: var(--text);
+  font-size: 12px;
+  line-height: 1.4;
+  color-scheme: dark;
+  font-variant-numeric: tabular-nums;
+}
+:root[data-screen-theme="day"] .screen {
+  --bg: #E9EEF0;
+  --card: #F7FAFA;
+  --card-2: #DDE5E6;
+  --border: #C6D2D3;
+  --text: #0C1416;
+  --muted: #4E5F62;
+  --accent: #0B6E63;
+  --accent-ink: #F7FAFA;
+  --accent-soft: #D2E7E2;
+  --ok: #0B6B45;
+  --ok-soft: #DDEEE5;
+  --warn: #7A4F00;
+  --warn-soft: #F3E7C8;
+  --danger: #B3261E;
+  --danger-soft: #F6DEDB;
+  --track: #C6D2D3;
+  --scrim: rgba(12, 20, 22, 0.32);
+  --toast-bg: #0C1416;
+  --toast-text: #F7FAFA;
+  --shadow: 0 1px 2px rgba(12, 20, 22, 0.06);
+  color-scheme: light;
+}
+
+.screen,
+.statusbar,
+.tile,
+.panel,
+.hero,
+.page-head,
+.btn,
+.chip,
+.seg,
+.tabs,
+.theme-pill,
+.badge,
+.confirm,
+.toast,
+.battery-bar,
+.w-bar,
+.home-status {
+  transition: background-color 0.2s ease, color 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+button:focus { outline: none; }
+button:focus-visible,
+[tabindex]:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* Status bar */
+.statusbar {
+  flex: none;
+  height: 40px;
+  padding: 0 10px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg);
+}
+.clock {
+  flex: none;
+  width: 40px;
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.sigs {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+}
+.sig {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex: none;
+}
+.sig-label {
+  font-size: 8px;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  line-height: 1;
+  color: var(--muted);
+  white-space: nowrap;
+}
+.sig-bars {
+  display: flex;
+  align-items: flex-end;
+  gap: 1.5px;
+  height: 13px;
+}
+.sig-bars i {
+  display: block;
+  width: 2.5px;
+  border-radius: 1px;
+  background: var(--track);
+}
+.sig-bars i:nth-child(1) { height: 4px; }
+.sig-bars i:nth-child(2) { height: 7px; }
+.sig-bars i:nth-child(3) { height: 10px; }
+.sig-bars i:nth-child(4) { height: 13px; }
+.sig-bars i.on { background: var(--accent); }
+.battery {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 1px;
+  color: var(--text);
+}
+.battery-shell {
+  position: relative;
+  width: 44px;
+  height: 20px;
+  display: inline-flex;
+  align-items: center;
+  overflow: hidden;
+  border: 1.5px solid currentColor;
+  border-radius: 6px;
+  background: var(--bg);
+}
+.battery-fill {
+  position: absolute;
+  top: 1.5px;
+  bottom: 1.5px;
+  left: 1.5px;
+  width: 82%;
+  border-radius: 4px;
+  background: var(--accent);
+}
+.battery-readout {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 1.5px;
+  color: var(--accent-ink);
+}
+.battery-bolt {
+  width: 4px;
+  height: 7px;
+  flex: none;
+  fill: currentColor;
+}
+.battery-pct {
+  font-size: 9.5px;
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: 0;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.battery-tip {
+  width: 2.5px;
+  height: 8px;
+  border-radius: 0 1.5px 1.5px 0;
+  background: currentColor;
+}
+
+/* Home */
+.screen-body {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+.home,
+.page {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  animation: page-in 0.18s ease-out;
+}
+.home { padding: 0 8px; }
+.home-head {
+  flex: none;
+  height: 40px;
+  padding: 0 2px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.home-title {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 650;
+  letter-spacing: 0.02em;
+  line-height: 1.2;
+}
+.theme-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 22px;
+  padding: 0 8px;
+  border: 1px solid var(--border);
+  border-radius: 11px;
+  background: var(--card);
+  color: var(--muted);
+  font-size: 9.5px;
+  line-height: 1;
+  white-space: nowrap;
+}
+.pill-glyph { --od-icon-size: 12px; }
+.icon-sun { display: none; }
+:root[data-screen-theme="day"] .icon-sun { display: inline-block; }
+:root[data-screen-theme="day"] .icon-moon { display: none; }
+.theme-word-day { display: none; }
+:root[data-screen-theme="day"] .theme-word-day { display: inline; }
+:root[data-screen-theme="day"] .theme-word-night { display: none; }
+
+.grid {
+  flex: none;
+  display: grid;
+  grid-template-columns: repeat(3, 96px);
+  grid-auto-rows: 96px;
+  gap: 8px;
+  justify-content: center;
+  margin-top: 36px;
+}
+.tile {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--card);
+  color: var(--text);
+  box-shadow: var(--shadow);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: background-color 0.18s ease, color 0.18s ease, border-color 0.18s ease, transform 0.12s ease, box-shadow 0.18s ease;
+}
+.tile:active { transform: scale(0.985); }
+.tile-glyph {
+  --od-icon-size: 26px;
+  color: var(--accent);
+}
+.tile-name {
+  display: block;
+  font-size: 16px;
+  font-weight: 550;
+  line-height: 1.15;
+  letter-spacing: 0.01em;
+  white-space: nowrap;
+}
+.tile-dot {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--ok);
+}
+.tile-dot.is-muted { background: var(--muted); }
+.tile-dot.is-warn { background: var(--warn); }
+.tile-dot.is-danger { background: var(--danger); }
+.tile.is-disabled {
+  cursor: default;
+  background: var(--card-2);
+  border-style: dashed;
+  box-shadow: none;
+  color: var(--muted);
+}
+.tile.is-disabled .tile-glyph { color: var(--muted); opacity: 0.7; }
+.tile.is-disabled:active { transform: none; }
+.tile-tag {
+  display: block;
+  padding: 3px 5px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg);
+  color: var(--muted);
+  font-size: 8.5px;
+  line-height: 1;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+}
+.tile.is-empty {
+  display: flex;
+  border: 1px dashed var(--border);
+  background: transparent;
+  box-shadow: none;
+  color: var(--muted);
+  cursor: default;
+}
+.tile.is-empty .tile-glyph { color: var(--muted); opacity: 0.5; }
+.tile.is-empty .tile-name { font-weight: 400; }
+.tile.is-empty:active { transform: none; }
+
+.home-status {
+  margin-top: auto;
+  padding: 0 2px 8px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 10px;
+  color: var(--muted);
+  white-space: nowrap;
+}
+.home-status .dot { width: 5px; height: 5px; }
+.home-status .sep { color: var(--border); }
+.status-strong { color: var(--text); font-weight: 600; }
+
+/* Shared marks */
+.dot {
+  width: 6px;
+  height: 6px;
+  flex: none;
+  border-radius: 50%;
+  background: var(--ok);
+}
+.dot.is-muted { background: var(--muted); }
+.dot.is-warn { background: var(--warn); }
+.dot.is-danger { background: var(--danger); }
+.badge {
+  display: inline-flex;
+  align-items: center;
+  height: 18px;
+  padding: 0 6px;
+  border-radius: 9px;
+  font-size: 9.5px;
+  font-weight: 600;
+  line-height: 1;
+  white-space: nowrap;
+}
+.badge.ok { background: var(--ok-soft); color: var(--ok); }
+.badge.warn { background: var(--warn-soft); color: var(--warn); }
+.badge.danger { background: var(--danger-soft); color: var(--danger); }
+.badge.soft { background: var(--accent-soft); color: var(--accent); }
+.badge.neutral { background: var(--card-2); color: var(--muted); }
+
+/* Pages */
+.page { background: var(--bg); }
+.page-head {
+  flex: none;
+  height: 44px;
+  padding: 0 6px 0 2px;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg);
+}
+.back {
+  width: 44px;
+  height: 44px;
+  flex: none;
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--text);
+  cursor: pointer;
+}
+.nav-glyph { --od-icon-size: 20px; }
+.page-title {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 650;
+  letter-spacing: 0.02em;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+.page-title:focus { outline: none; }
+.head-tag {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  height: 20px;
+  padding: 0 7px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--card);
+  color: var(--muted);
+  font-size: 9.5px;
+  line-height: 1;
+  white-space: nowrap;
+}
+.head-tag.is-ok { color: var(--ok); }
+.head-tag.is-warn { color: var(--warn); }
+.head-tag.is-muted { color: var(--muted); }
+.head-tag.is-danger { color: var(--danger); }
+.head-action {
+  margin-left: auto;
+  min-width: 44px;
+  height: 44px;
+  padding: 0 6px;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--accent);
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.head-action:disabled { color: var(--muted); cursor: default; }
+.page-scroll {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  overscroll-behavior: contain;
+  padding: 10px 10px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  scrollbar-width: none;
+}
+.page-scroll::-webkit-scrollbar { width: 0; height: 0; }
+.page-scroll > * { flex: none; }
+
+.panel {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  box-shadow: var(--shadow);
+  padding: 10px 12px;
+}
+.summary {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 12px;
+}
+.kicker {
+  display: block;
+  margin-bottom: 2px;
+  font-size: 9.5px;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+}
+.big {
+  font-size: 26px;
+  font-weight: 650;
+  line-height: 1.05;
+  letter-spacing: -0.01em;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.big .unit {
+  margin-left: 2px;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--muted);
+}
+.chart-block { display: flex; flex-direction: column; gap: 4px; }
+.chart-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 9.5px;
+  color: var(--muted);
+}
+.spark {
+  display: block;
+  width: 100%;
+  height: 54px;
+}
+.spark-grid {
+  stroke: var(--border);
+  stroke-width: 1;
+  stroke-dasharray: 2 4;
+  opacity: 0.7;
+}
+.spark-area { fill: var(--accent-soft); opacity: 0.7; }
+.spark-line {
+  fill: none;
+  stroke: var(--accent);
+  stroke-width: 1.6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.spark-dot { fill: var(--accent); }
+
+.net-list { display: grid; gap: 8px; }
+.net-card { padding: 10px; }
+.net-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+.net-name {
+  font-size: 14px;
+  font-weight: 650;
+  letter-spacing: 0.01em;
+  white-space: nowrap;
+}
+.net-metrics {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 7px 10px;
+}
+.metric { display: grid; gap: 1px; min-width: 0; }
+.metric-label {
+  font-size: 9px;
+  letter-spacing: 0.02em;
+  color: var(--muted);
+}
+.metric-value {
+  font-size: 12px;
+  font-weight: 550;
+  white-space: nowrap;
+}
+.weight-line {
+  margin-top: 8px;
+  padding-top: 7px;
+  border-top: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 9.5px;
+  color: var(--muted);
+}
+
+.hero {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  box-shadow: var(--shadow);
+  padding: 12px;
+}
+.hero-top {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+.hero-state {
+  font-size: 15px;
+  font-weight: 650;
+  white-space: nowrap;
+}
+.hero-top .badge { margin-left: auto; }
+.hero-sub {
+  margin-top: 4px;
+  font-size: 10.5px;
+  line-height: 1.5;
+  color: var(--muted);
+}
+.status-list { padding: 4px 12px 2px; }
+.stat-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 33px;
+}
+.status-list .stat-row + .stat-row { border-top: 1px solid var(--border); }
+.stat-label {
+  font-size: 11px;
+  color: var(--muted);
+  white-space: nowrap;
+}
+.stat-value {
+  font-size: 12.5px;
+  font-weight: 550;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.ok-text { color: var(--ok); }
+.warn-text { color: var(--warn); }
+.danger-text { color: var(--danger); }
+
+.action-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+.btn {
+  min-height: 44px;
+  padding: 0 10px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--card);
+  color: var(--text);
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.2;
+  cursor: pointer;
+  transition: background-color 0.18s ease, color 0.18s ease, border-color 0.18s ease, transform 0.12s ease;
+}
+.btn:active:not(:disabled) { transform: scale(0.99); }
+.btn-primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--accent-ink);
+}
+.btn-danger {
+  background: var(--danger-soft);
+  border-color: var(--danger);
+  color: var(--danger);
+}
+.btn-ghost {
+  background: var(--card);
+  color: var(--text);
+  border-color: var(--border);
+}
+.btn:disabled {
+  background: var(--card-2);
+  border-color: var(--border);
+  color: var(--muted);
+  cursor: not-allowed;
+}
+.btn-block { width: 100%; }
+.hint {
+  margin: 0;
+  font-size: 10.5px;
+  line-height: 1.55;
+  color: var(--muted);
+}
+
+/* Proxy page: one page, two engines */
+.proxy-body { gap: 7px; padding: 8px 10px 12px; }
+.proxy-summary { padding: 9px 11px 7px; }
+.proxy-sub { margin-top: 3px; font-size: 10px; line-height: 1.4; color: var(--muted); }
+.proxy-fields {
+  margin-top: 6px;
+  padding-top: 6px;
+  border-top: 1px solid var(--border);
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 0 10px;
+}
+.field {
+  display: flex;
+  align-items: baseline;
+  gap: 5px;
+  min-width: 0;
+  min-height: 21px;
+}
+.field-label { flex: none; font-size: 9.5px; color: var(--muted); white-space: nowrap; }
+.field-value {
+  min-width: 0;
+  font-size: 11.5px;
+  font-weight: 550;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.proxy-traffic { padding: 6px 11px; }
+.traffic-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 19px;
+}
+.traffic-row + .traffic-row { border-top: 1px solid var(--border); }
+.traffic-label { flex: none; width: 30px; font-size: 9.5px; color: var(--muted); }
+.traffic-value { font-size: 11px; font-weight: 550; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.traffic-value.up { margin-left: auto; color: var(--muted); }
+.proxy-actions .btn { min-height: 44px; font-size: 11.5px; }
+.sub-stats {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  padding: 4px 10px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--card);
+  box-shadow: var(--shadow);
+}
+.sub-stats > div {
+  display: flex;
+  align-items: baseline;
+  gap: 4px;
+  min-width: 0;
+  min-height: 18px;
+}
+.sub-stats > div + div { border-left: 1px solid var(--border); padding-left: 9px; }
+.sub-stat-label { font-size: 9px; color: var(--muted); white-space: nowrap; }
+.sub-stat-value { font-size: 11px; font-weight: 600; white-space: nowrap; }
+.engine-switch { display: flex; flex-direction: column; gap: 4px; }
+.engine-switch-head { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+.engine-switch-title { font-size: 10px; font-weight: 600; color: var(--text); }
+.engine-switch-note { font-size: 9px; color: var(--muted); text-align: right; white-space: nowrap; }
+.engine-switch-actions { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 8px; }
+.engine-switch-actions .btn { min-height: 40px; font-size: 11px; }
+.engine-switch-actions .btn:not(:disabled) { border-color: var(--accent); color: var(--accent); }
+.proxy-body .hint { font-size: 9.5px; line-height: 1.4; }
+.proxy-updated {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 8.5px;
+  color: var(--muted);
+}
+.proxy-updated span:last-child {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-align: right;
+}
+
+.seg {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 4px;
+  padding: 4px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--card-2);
+}
+.seg button {
+  min-height: 44px;
+  padding: 0 4px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 1.2;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.seg button[aria-pressed="true"] {
+  background: var(--card);
+  border-color: var(--border);
+  color: var(--text);
+  box-shadow: var(--shadow);
+  font-weight: 650;
+}
+.weight-title {
+  margin: 0 0 6px;
+  font-size: 9.5px;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+}
+.weight-group + .weight-group {
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid var(--border);
+}
+.weight-group-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 4px;
+  font-size: 10px;
+  color: var(--muted);
+}
+.w-item {
+  display: grid;
+  grid-template-columns: 34px minmax(0, 1fr) 18px;
+  align-items: center;
+  gap: 6px;
+  min-height: 16px;
+}
+.w-label {
+  font-size: 9.5px;
+  color: var(--muted);
+  white-space: nowrap;
+}
+.w-bar {
+  height: 4px;
+  overflow: hidden;
+  border-radius: 2px;
+  background: var(--track);
+}
+.w-bar i {
+  display: block;
+  height: 100%;
+  border-radius: 2px;
+  background: var(--accent);
+}
+.w-val {
+  font-size: 9.5px;
+  text-align: right;
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+}
+.pool-group + .pool-group {
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid var(--border);
+}
+.pool-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.pool-name { font-size: 12px; font-weight: 650; }
+.pool-sum {
+  font-size: 9.5px;
+  color: var(--muted);
+  text-align: right;
+}
+.chips {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px;
+  margin-top: 7px;
+}
+.chip {
+  min-height: 44px;
+  padding: 0 4px;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  background: var(--card);
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 500;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.chip[aria-pressed="true"] {
+  background: var(--accent-soft);
+  border-color: var(--accent);
+  color: var(--accent);
+  font-weight: 650;
+}
+.custom-foot {
+  margin-top: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.tabs {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px;
+  padding: 4px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--card-2);
+}
+.tabs button {
+  min-height: 44px;
+  padding: 0 4px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 550;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.tabs button[aria-selected="true"] {
+  background: var(--card);
+  border-color: var(--border);
+  color: var(--text);
+  box-shadow: var(--shadow);
+  font-weight: 650;
+}
+
+/* Device page: hero + four tabs + pinned diagnostics */
+.device-main {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+.device-top {
+  flex: none;
+  padding: 6px 8px 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.device-hero { padding: 7px 12px 6px; }
+.device-tabs { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.device-tabs button { min-height: 38px; padding: 0 2px; font-size: 11.5px; }
+.device-content {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  overscroll-behavior: contain;
+  padding: 6px 8px 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  scrollbar-width: none;
+}
+.device-content::-webkit-scrollbar { width: 0; height: 0; }
+.device-panel { display: flex; flex-direction: column; gap: 8px; }
+.device-panel[hidden] { display: none; }
+.device-card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+.device-card-title { font-size: 11px; font-weight: 600; color: var(--text); }
+.device-state { font-size: 9.5px; color: var(--muted); white-space: nowrap; }
+.device-mini {
+  min-height: 32px;
+  padding: 0 9px;
+  border-radius: 8px;
+  background: var(--card-2);
+  font-size: 9.5px;
+}
+.device-choice-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+}
+.device-choice-row {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px;
+}
+.device-choice {
+  min-height: 36px;
+  padding: 0 4px;
+  border-radius: 9px;
+  font-size: 11px;
+}
+.device-choice[aria-pressed="true"],
+.device-choice[aria-pressed="true"]:hover {
+  background: var(--accent-soft);
+  border-color: var(--accent);
+  color: var(--accent);
+  font-weight: 650;
+}
+.device-hint { margin-top: 6px; font-size: 9px; line-height: 1.45; }
+.device-band { grid-template-columns: 1fr 1fr; }
+.device-band button { min-height: 36px; }
+.device-setting-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  min-height: 38px;
+}
+.device-setting-row + .device-setting-row { border-top: 1px solid var(--border); }
+.device-setting-label { font-size: 11px; color: var(--muted); }
+.stepper { display: flex; align-items: center; gap: 4px; flex: none; }
+.step-btn {
+  width: 32px;
+  min-height: 32px;
+  padding: 0;
+  border-radius: 8px;
+  background: var(--card-2);
+  font-size: 15px;
+  line-height: 1;
+}
+.step-btn:disabled { opacity: 0.45; }
+.step-value {
+  min-width: 44px;
+  text-align: center;
+  font-size: 11.5px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.device-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-top: 6px;
+}
+.device-actions .btn { min-height: 38px; }
+.device-foot {
+  flex: none;
+  padding: 6px 8px;
+  border-top: 1px solid var(--border);
+  background: var(--bg);
+}
+.device-foot .btn { min-height: 40px; }
+.device-live { padding: 9px 12px 10px; }
+.device-live-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.device-live-label { font-size: 10px; font-weight: 600; color: var(--text); }
+.device-live-note { font-size: 9px; color: var(--muted); }
+.device-live-values {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-top: 6px;
+}
+.live-item { min-width: 0; }
+.live-item + .live-item { border-left: 1px solid var(--border); padding-left: 10px; }
+.live-dir { display: block; font-size: 9px; color: var(--muted); }
+.live-num {
+  margin-top: 1px;
+  font-size: 22px;
+  font-weight: 650;
+  line-height: 1.1;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.live-unit { margin-left: 2px; font-size: 9.5px; font-weight: 500; color: var(--muted); }
+.live-item.is-up .live-num { color: var(--muted); }
+.device-summary { padding: 0 12px; }
+.device-sum-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.device-sum-col { min-width: 0; padding: 8px 0; }
+.device-sum-col + .device-sum-col { border-left: 1px solid var(--border); padding-left: 9px; }
+.device-sum-title { margin-bottom: 4px; font-size: 9px; color: var(--muted); }
+.device-sum-line {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 3px;
+  font-size: 10px;
+  line-height: 1.55;
+  font-variant-numeric: tabular-nums;
+}
+.device-sum-line span:first-child { width: 8px; color: var(--muted); }
+.device-sum-line span:last-child { font-weight: 550; }
+.device-sum-line.is-up { color: var(--muted); }
+.device-sum-line.is-up span:last-child { font-weight: 500; }
+
+/* Cooling curve page */
+.cooling-main {
+  flex: 1 1 auto;
+  min-height: 0;
+  padding: 8px 8px 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.cooling-mode { grid-template-columns: 1fr 1fr; }
+.cooling-mode button { min-height: 34px; font-size: 11.5px; }
+.cooling-chart { padding: 10px 12px 6px; }
+.cooling-graph { display: block; width: 100%; height: 92px; }
+.curve-line {
+  fill: none;
+  stroke: var(--text);
+  stroke-width: 1.6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.curve-axis,
+.curve-tick { stroke: var(--border); stroke-width: 1; }
+.curve-marker circle { fill: var(--accent); }
+.curve-marker line {
+  stroke: var(--accent);
+  stroke-width: 1;
+  stroke-dasharray: 2 3;
+  opacity: 0.55;
+}
+.cooling-axis {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 1px;
+  font-size: 9px;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+.cooling-summary {
+  margin-top: 3px;
+  text-align: center;
+  font-size: 9.5px;
+  line-height: 1.35;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+.cooling-content {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  overscroll-behavior: contain;
+  padding-bottom: 2px;
+  scrollbar-width: none;
+}
+.cooling-content::-webkit-scrollbar { width: 0; height: 0; }
+.cooling-panel { display: flex; flex-direction: column; gap: 6px; }
+.cooling-panel[hidden] { display: none; }
+.cooling-stock { padding: 8px 10px; }
+.cooling-table-head,
+.cooling-table-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 30px;
+}
+.cooling-table-head {
+  min-height: 24px;
+  font-size: 9.5px;
+  color: var(--muted);
+}
+.cooling-table-row { font-size: 12px; font-variant-numeric: tabular-nums; }
+.cooling-table-row + .cooling-table-row { border-top: 1px solid var(--border); }
+.cooling-table-row span:last-child { font-weight: 600; }
+.cooling-editor { padding: 8px 10px; }
+.cooling-point-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  min-height: 28px;
+}
+.cooling-caption {
+  font-size: 9.5px;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.cooling-point-tools { display: flex; align-items: center; gap: 4px; }
+.cooling-mini {
+  min-height: 28px;
+  padding: 0 7px;
+  border-radius: 7px;
+  font-size: 10.5px;
+  font-weight: 600;
+}
+.cooling-mini-arrow { font-size: 14px; }
+.cooling-mini:disabled { opacity: 0.45; }
+.cooling-setting {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  min-height: 36px;
+  border-top: 1px solid var(--border);
+}
+.cooling-setting-label { font-size: 11px; color: var(--muted); }
+.cooling-stepper { display: flex; align-items: center; gap: 4px; }
+.cooling-step {
+  width: 32px;
+  min-height: 32px;
+  padding: 0;
+  border-radius: 8px;
+  background: var(--card-2);
+  font-size: 15px;
+  line-height: 1;
+}
+.cooling-step:disabled { opacity: 0.45; }
+.cooling-value {
+  min-width: 56px;
+  text-align: center;
+  font-size: 15px;
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.cooling-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-top: 6px;
+}
+.cooling-actions .btn { min-height: 32px; font-size: 11px; }
+.cooling-hint { margin-top: 6px; font-size: 9px; line-height: 1.4; }
+
+.balance-panel { padding: 2px 12px; }
+.bal-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 2px 12px;
+  padding: 10px 0;
+}
+.bal-row + .bal-row { border-top: 1px solid var(--border); }
+.bal-label { font-size: 11px; color: var(--muted); }
+.bal-value {
+  font-size: 16px;
+  font-weight: 650;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.bal-sub {
+  grid-column: 1 / -1;
+  font-size: 9.5px;
+  color: var(--muted);
+}
+.balance-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 9.5px;
+  color: var(--muted);
+}
+
+.group-title {
+  margin: 0 0 4px;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+}
+
+.charge-hero {
+  padding: 16px 12px 14px;
+  text-align: center;
+}
+.charge-icon {
+  width: 44px;
+  height: 44px;
+  margin: 0 auto 8px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+.charge-glyph { --od-icon-size: 24px; }
+.charge-power {
+  font-size: 34px;
+  font-weight: 650;
+  line-height: 1;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.charge-power span {
+  margin-left: 3px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--muted);
+}
+.charge-state {
+  margin-top: 6px;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 10.5px;
+  color: var(--muted);
+}
+.battery-bar {
+  height: 10px;
+  overflow: hidden;
+  border-radius: 5px;
+  background: var(--track);
+}
+.battery-bar span {
+  display: block;
+  height: 100%;
+  border-radius: 5px;
+  background: var(--accent);
+}
+.battery-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: 5px;
+  font-size: 9.5px;
+  color: var(--muted);
+}
+
+/* Feedback */
+.toast {
+  position: absolute;
+  left: 50%;
+  bottom: 14px;
+  z-index: 15;
+  max-width: 280px;
+  padding: 9px 12px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--toast-bg);
+  color: var(--toast-text);
+  font-size: 11px;
+  line-height: 1.4;
+  text-align: center;
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transform: translate(-50%, 8px);
+  transition: opacity 0.18s ease, transform 0.18s ease, visibility 0.18s ease;
+}
+.toast.is-visible {
+  opacity: 1;
+  visibility: visible;
+  transform: translate(-50%, 0);
+}
+.sheet-scrim {
+  position: absolute;
+  inset: 0;
+  z-index: 20;
+  background: var(--scrim);
+}
+.confirm {
+  position: absolute;
+  left: 10px;
+  right: 10px;
+  bottom: 10px;
+  z-index: 21;
+  padding: 14px;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: var(--card);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.35);
+}
+.confirm h2 {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 650;
+  line-height: 1.3;
+}
+.confirm p {
+  margin: 6px 0 0;
+  font-size: 11px;
+  line-height: 1.55;
+  color: var(--muted);
+}
+.confirm-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+@keyframes page-in {
+  from { opacity: 0; transform: translateX(8px); }
+  to { opacity: 1; transform: none; }
+}
+
+@media (hover: hover) {
+  .tile:not(.is-disabled):not(.is-empty):hover {
+    border-color: var(--accent);
+    background: var(--card-2);
+  }
+  .btn-ghost:hover:not(:disabled),
+  .btn:hover:not(:disabled):not(.btn-primary):not(.btn-danger) {
+    background: var(--card-2);
+  }
+  .btn-primary:hover:not(:disabled) { border-color: var(--accent); }
+  .btn-danger:hover:not(:disabled) { background: var(--danger-soft); border-color: var(--danger); }
+  .back:hover, .head-action:hover:not(:disabled) { background: var(--card-2); }
+  .seg button:hover:not([aria-pressed="true"]),
+  .tabs button:hover:not([aria-selected="true"]) { color: var(--text); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .home, .page { animation: none; }
+  .toast, .tile, .btn, .chip, .seg, .tabs, .theme-pill, .panel, .hero,
+  .statusbar, .home-status, .battery-bar, .w-bar, .badge, .confirm {
+    transition-duration: 0.01ms;
+  }
+}
+</style>
+</head>
+<body>
+<main class="stage">
+  <div class="stage-head">
+    <div class="stage-title">TopFlow 触屏控制中心</div>
+    <div class="stage-meta">320 × 480 · 叠层界面 · 演示数据</div>
+  </div>
+
+  <div class="device-wrap">
+    <div class="screen-holder">
+      <div class="screen" id="screen" data-view="home">
+        <header class="statusbar" aria-label="设备状态">
+          <time class="clock" id="clock" datetime="">14:26</time>
+          <div class="sigs">
+            <div class="sig" aria-label="5G 信号 4 格，共 4 格">
+              <span class="sig-label">5G</span>
+              <span class="sig-bars" aria-hidden="true"><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i></span>
+            </div>
+            <div class="sig" aria-label="4G#1 信号 3 格，共 4 格">
+              <span class="sig-label">4G¹</span>
+              <span class="sig-bars" aria-hidden="true"><i class="on"></i><i class="on"></i><i class="on"></i><i></i></span>
+            </div>
+            <div class="sig" aria-label="4G#2 信号 2 格，共 4 格">
+              <span class="sig-label">4G²</span>
+              <span class="sig-bars" aria-hidden="true"><i class="on"></i><i class="on"></i><i></i><i></i></span>
+            </div>
+          </div>
+          <div class="battery" role="img" aria-label="电量 82%，正在充电">
+            <span class="battery-shell" aria-hidden="true">
+              <span class="battery-fill"></span>
+              <span class="battery-readout">
+                <svg class="battery-bolt" viewBox="0 0 6 10" aria-hidden="true" focusable="false">
+                  <path d="M3.3 0 0 5.5h2.1L1.5 10 6 4.3H3.7L4.8 0z"></path>
+                </svg>
+                <span class="battery-pct">82%</span>
+              </span>
+            </span>
+            <span class="battery-tip" aria-hidden="true"></span>
+          </div>
+        </header>
+
+        <div class="screen-body">
+          <section class="home" id="page-home" aria-labelledby="home-title">
+            <div class="home-head">
+              <h1 class="home-title" id="home-title">控制中心</h1>
+              <span class="theme-pill">
+                <svg class="od-icon pill-glyph icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true" focusable="false">
+                  <circle cx="12" cy="12" r="4"></circle>
+                  <path d="M12 2.5v2M12 19.5v2M2.5 12h2M19.5 12h2M5.3 5.3l1.4 1.4M17.3 17.3l1.4 1.4M18.7 5.3l-1.4 1.4M6.7 17.3l-1.4 1.4"></path>
+                </svg>
+                <svg class="od-icon pill-glyph icon-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">
+                  <path d="M20 14.5A8.5 8.5 0 0 1 9.5 4a8.5 8.5 0 1 0 10.5 10.5z"></path>
+                </svg>
+                <span class="theme-word theme-word-night">夜间</span>
+                <span class="theme-word theme-word-day">日间</span>
+              </span>
+            </div>
+
+            <div class="grid" role="group" aria-label="控制中心功能">
+              <button class="tile" type="button" data-page="network" aria-label="网络，打开网络仪表">
+                <svg class="od-icon tile-glyph" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">
+                  <path d="M12 20v-6"></path>
+                  <circle cx="12" cy="10.5" r="1.4"></circle>
+                  <path d="M8.8 17.2a5 5 0 0 1 0-6.8"></path>
+                  <path d="M5.8 19.8a9 9 0 0 1 0-12"></path>
+                  <path d="M15.2 17.2a5 5 0 0 0 0-6.8"></path>
+                  <path d="M18.2 19.8a9 9 0 0 0 0-12"></path>
+                </svg>
+                <span class="tile-name">网络</span>
+              </button>
+
+              <button class="tile" type="button" data-page="proxy" aria-label="代理，运行中">
+                <svg class="od-icon tile-glyph" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">
+                  <path d="M12 3l7 4v10l-7 4-7-4V7l7-4z"></path>
+                  <path d="M5 7l7 4 7-4"></path>
+                  <path d="M12 11v10"></path>
+                </svg>
+                <span class="tile-name">代理</span>
+                <span class="tile-dot" id="tileProxyDot" aria-hidden="true"></span>
+              </button>
+
+              <button class="tile" type="button" data-page="wanbal" aria-label="分流，打开分流设置">
+                <svg class="od-icon tile-glyph" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">
+                  <path d="M4 12h6"></path>
+                  <path d="M10 12l5-6h5"></path>
+                  <path d="M10 12l5 6h5"></path>
+                  <path d="M10 12h10"></path>
+                </svg>
+                <span class="tile-name">分流</span>
+              </button>
+
+              <button class="tile" type="button" data-page="balance" aria-label="余量，打开余量查询">
+                <svg class="od-icon tile-glyph" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">
+                  <path d="M4 16a8 8 0 1 1 16 0"></path>
+                  <path d="M12 16l4-5"></path>
+                  <path d="M4 16h16"></path>
+                </svg>
+                <span class="tile-name">余量</span>
+              </button>
+
+              <button class="tile" type="button" data-page="device" aria-label="设备，打开设备状态">
+                <svg class="od-icon tile-glyph" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">
+                  <rect x="7" y="7" width="10" height="10" rx="2"></rect>
+                  <path d="M10 3v4M14 3v4M10 17v4M14 17v4M3 10h4M3 14h4M17 10h4M17 14h4"></path>
+                </svg>
+                <span class="tile-name">设备</span>
+              </button>
+
+              <button class="tile" type="button" data-page="charge" aria-label="充电，打开充电功率">
+                <svg class="od-icon tile-glyph" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">
+                  <rect x="3.5" y="3.5" width="17" height="17" rx="4"></rect>
+                  <path d="M12.6 6.4l-4.2 6.2h3.2l-1 5 4.2-6.2h-3.2l1-5z"></path>
+                </svg>
+                <span class="tile-name">充电</span>
+              </button>
+
+              <button class="tile" type="button" id="themeTile" aria-label="主题，当前夜间，点击切换为日间">
+                <svg class="od-icon tile-glyph icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true" focusable="false">
+                  <circle cx="12" cy="12" r="4"></circle>
+                  <path d="M12 2.5v2M12 19.5v2M2.5 12h2M19.5 12h2M5.3 5.3l1.4 1.4M17.3 17.3l1.4 1.4M18.7 5.3l-1.4 1.4M6.7 17.3l-1.4 1.4"></path>
+                </svg>
+                <svg class="od-icon tile-glyph icon-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">
+                  <path d="M20 14.5A8.5 8.5 0 0 1 9.5 4a8.5 8.5 0 1 0 10.5 10.5z"></path>
+                </svg>
+                <span class="tile-name">主题</span>
+              </button>
+
+              <div class="tile is-empty">
+                <svg class="od-icon tile-glyph" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true" focusable="false">
+                  <path d="M12 5v14M5 12h14"></path>
+                </svg>
+                <span class="tile-name">空位</span>
+              </div>
+            </div>
+
+            <div class="home-status" aria-live="polite">
+              <span class="dot" id="homeDot" aria-hidden="true"></span>
+              <span class="status-strong" id="homeService">代理运行中</span>
+              <span class="sep" aria-hidden="true">·</span>
+              <span id="homeMode">eBPF · DHCP 0.1</span>
+              <span class="sep" aria-hidden="true">·</span>
+              <span>三卡在线</span>
+            </div>
+          </section>
+
+          <section class="page" id="page-network" hidden="" aria-labelledby="network-title">
+            <header class="page-head">
+              <button class="back" type="button" data-back="" aria-label="返回控制中心">
+                <svg class="od-icon nav-glyph" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">
+                  <path d="M15 5l-7 7 7 7"></path>
+                </svg>
+              </button>
+              <h2 class="page-title" tabindex="-1" id="network-title">网络</h2>
+              <span class="head-tag">实时</span>
+            </header>
+            <div class="page-scroll">
+              <div class="panel summary">
+                <div>
+                  <span class="kicker">三卡在线</span>
+                  <div class="big">2.4<span class="unit">MB/s</span></div>
+                </div>
+                <span class="badge ok">总速率</span>
+              </div>
+
+              <div class="chart-block">
+                <div class="chart-head">
+                  <span>近 60 秒总速率</span>
+                  <span>峰值 3.1 MB/s</span>
+                </div>
+                <svg class="spark" viewBox="0 0 300 54" preserveAspectRatio="none" role="img" aria-labelledby="spark-title">
+                  <title id="spark-title">近 60 秒总速率趋势，当前 2.4 MB/s</title>
+                  <line class="spark-grid" x1="4" y1="14" x2="296" y2="14" vector-effect="non-scaling-stroke"></line>
+                  <line class="spark-grid" x1="4" y1="28" x2="296" y2="28" vector-effect="non-scaling-stroke"></line>
+                  <line class="spark-grid" x1="4" y1="42" x2="296" y2="42" vector-effect="non-scaling-stroke"></line>
+                  <path class="spark-area" d="M4 44L14 40L24 41L34 33L44 35L54 27L64 30L74 22L84 26L94 19L104 23L114 16L124 21L134 14L144 18L154 11L164 15L174 10L184 14L194 8L204 12L214 9L224 15L234 11L244 17L254 12L264 19L274 14L284 21L296 17L296 54L4 54Z"></path>
+                  <path class="spark-line" d="M4 44L14 40L24 41L34 33L44 35L54 27L64 30L74 22L84 26L94 19L104 23L114 16L124 21L134 14L144 18L154 11L164 15L174 10L184 14L194 8L204 12L214 9L224 15L234 11L244 17L254 12L264 19L274 14L284 21L296 17" vector-effect="non-scaling-stroke"></path>
+                  <circle class="spark-dot" cx="296" cy="17" r="2.5"></circle>
+                </svg>
+              </div>
+
+              <div class="net-list">
+                <article class="panel net-card">
+                  <div class="net-head">
+                    <span class="net-name">5G</span>
+                    <span class="badge ok">正常</span>
+                  </div>
+                  <div class="net-metrics">
+                    <div class="metric"><span class="metric-label">信号</span><span class="metric-value">-82 dBm</span></div>
+                    <div class="metric"><span class="metric-label">延迟</span><span class="metric-value">52 ms</span></div>
+                    <div class="metric"><span class="metric-label">下行</span><span class="metric-value">1.8 MB/s</span></div>
+                    <div class="metric"><span class="metric-label">上行</span><span class="metric-value">86 KB/s</span></div>
+                  </div>
+                  <div class="weight-line"><span>有效权重</span><span>TCP 9 · UDP 4</span></div>
+                </article>
+
+                <article class="panel net-card">
+                  <div class="net-head">
+                    <span class="net-name">4G#1</span>
+                    <span class="badge warn">弱</span>
+                  </div>
+                  <div class="net-metrics">
+                    <div class="metric"><span class="metric-label">信号</span><span class="metric-value">-96 dBm</span></div>
+                    <div class="metric"><span class="metric-label">延迟</span><span class="metric-value">682 ms</span></div>
+                    <div class="metric"><span class="metric-label">下行</span><span class="metric-value">0.4 MB/s</span></div>
+                    <div class="metric"><span class="metric-label">上行</span><span class="metric-value">31 KB/s</span></div>
+                  </div>
+                  <div class="weight-line"><span>有效权重</span><span>TCP 1 · UDP 1</span></div>
+                </article>
+
+                <article class="panel net-card">
+                  <div class="net-head">
+                    <span class="net-name">4G#2</span>
+                    <span class="badge warn">弱</span>
+                  </div>
+                  <div class="net-metrics">
+                    <div class="metric"><span class="metric-label">信号</span><span class="metric-value">-104 dBm</span></div>
+                    <div class="metric"><span class="metric-label">延迟</span><span class="metric-value">675 ms</span></div>
+                    <div class="metric"><span class="metric-label">下行</span><span class="metric-value">0.2 MB/s</span></div>
+                    <div class="metric"><span class="metric-label">上行</span><span class="metric-value">18 KB/s</span></div>
+                  </div>
+                  <div class="weight-line"><span>有效权重</span><span>TCP 1 · UDP 1</span></div>
+                </article>
+              </div>
+            </div>
+          </section>
+
+          <section class="page" id="page-proxy" hidden="" aria-labelledby="proxy-title">
+            <header class="page-head">
+              <button class="back" type="button" data-back="" aria-label="返回控制中心">
+                <svg class="od-icon nav-glyph" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">
+                  <path d="M15 5l-7 7 7 7"></path>
+                </svg>
+              </button>
+              <h2 class="page-title" tabindex="-1" id="proxy-title">代理</h2>
+              <span class="head-tag is-ok" id="pxTag">运行中</span>
+            </header>
+            <div class="page-scroll proxy-body">
+              <div class="panel proxy-summary">
+                <div class="hero-top">
+                  <span class="dot" id="pxDot" aria-hidden="true"></span>
+                  <span class="hero-state" id="pxState">运行正常</span>
+                  <span class="badge soft" id="pxMode">eBPF 模式</span>
+                </div>
+                <div class="proxy-sub" id="pxSub">PID 7822 · 自动拉起</div>
+                <div class="proxy-fields">
+                  <div class="field"><span class="field-label">核心</span><span class="field-value" id="pxCore">1.14.4-reF1nd</span></div>
+                  <div class="field"><span class="field-label">内存</span><span class="field-value" id="pxMem">105.4 MB</span></div>
+                  <div class="field"><span class="field-label">数据面</span><span class="field-value" id="pxPlane">eBPF 已接管</span></div>
+                  <div class="field"><span class="field-label">DHCP</span><span class="field-value" id="pxDhcp">0.1</span></div>
+                </div>
+              </div>
+
+              <div class="panel proxy-traffic">
+                <div class="traffic-row"><span class="traffic-label">实时</span><span class="traffic-value" id="pxRateDown">↓ 2.4 MB/s</span><span class="traffic-value up" id="pxRateUp">↑ 86 KB/s</span></div>
+                <div class="traffic-row"><span class="traffic-label">累计</span><span class="traffic-value" id="pxTotalDown">↓ 8.79 GB</span><span class="traffic-value up" id="pxTotalUp">↑ 321 MB</span></div>
+              </div>
+
+              <div class="action-row proxy-actions">
+                <button class="btn btn-danger" type="button" id="pxPrimary">停止服务</button>
+                <button class="btn btn-ghost" type="button" id="pxSecondary">重启服务</button>
+              </div>
+
+              <div class="sub-stats" aria-label="代理次级状态">
+                <div><span class="sub-stat-label">订阅</span><span class="sub-stat-value" id="pxProviders">12</span></div>
+                <div><span class="sub-stat-label">看门狗</span><span class="sub-stat-value" id="pxWatchdog">开</span></div>
+                <div><span class="sub-stat-label">保活</span><span class="sub-stat-value" id="pxKeeper">开</span></div>
+              </div>
+
+              <div class="engine-switch">
+                <div class="engine-switch-head">
+                  <span class="engine-switch-title">核心切换（二次确认）</span>
+                  <span class="engine-switch-note" id="pxSwitchNote">切换约 3 秒</span>
+                </div>
+                <div class="engine-switch-actions">
+                  <button class="btn btn-ghost" type="button" id="pxToSingbox" disabled="">切到 sing-box</button>
+                  <button class="btn btn-ghost" type="button" id="pxToMihomo">切回 mihomo</button>
+                </div>
+              </div>
+
+              <p class="hint" id="pxHint">切回 mihomo 会暂停服务；二次确认后执行。</p>
+              <div class="proxy-updated"><span id="pxUpdated">更新于 --:--:--</span><span id="pxMessage">sing-box 运行中</span></div>
+            </div>
+          </section>
+
+          <section class="page" id="page-wanbal" hidden="" aria-labelledby="wanbal-title">
+            <header class="page-head">
+              <button class="back" type="button" data-back="" aria-label="返回控制中心">
+                <svg class="od-icon nav-glyph" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">
+                  <path d="M15 5l-7 7 7 7"></path>
+                </svg>
+              </button>
+              <h2 class="page-title" tabindex="-1" id="wanbal-title">分流</h2>
+              <span class="head-tag" id="wbTag">自动·质量</span>
+            </header>
+            <div class="page-scroll">
+              <div class="seg" role="group" aria-label="分流预设">
+                <button type="button" data-preset="auto" aria-pressed="true">自动·质量</button>
+                <button type="button" data-preset="shared" aria-pressed="false">三卡共池</button>
+                <button type="button" data-preset="custom" aria-pressed="false">自定义</button>
+              </div>
+              <p class="hint" id="wbNote">质量加权共池；TCP 偏 5G，UDP 偏 4G。</p>
+
+              <div class="panel" id="wbWeights">
+                <div class="weight-title">有效权重</div>
+                <div id="wbWeightRows"></div>
+              </div>
+
+              <div class="panel" id="wbCustom" hidden="">
+                <div class="pool-group">
+                  <div class="pool-head">
+                    <span class="pool-name">TCP 走卡</span>
+                    <span class="pool-sum" id="tcpSummary">5G</span>
+                  </div>
+                  <div class="chips" role="group" aria-label="TCP 走卡">
+                    <button class="chip" type="button" data-proto="tcp" data-card="5g" aria-pressed="true">5G</button>
+                    <button class="chip" type="button" data-proto="tcp" data-card="4g1" aria-pressed="false">4G#1</button>
+                    <button class="chip" type="button" data-proto="tcp" data-card="4g2" aria-pressed="false">4G#2</button>
+                  </div>
+                </div>
+
+                <div class="pool-group">
+                  <div class="pool-head">
+                    <span class="pool-name">UDP 走卡</span>
+                    <span class="pool-sum" id="udpSummary">4G#1 · 4G#2</span>
+                  </div>
+                  <div class="chips" role="group" aria-label="UDP 走卡">
+                    <button class="chip" type="button" data-proto="udp" data-card="5g" aria-pressed="false">5G</button>
+                    <button class="chip" type="button" data-proto="udp" data-card="4g1" aria-pressed="true">4G#1</button>
+                    <button class="chip" type="button" data-proto="udp" data-card="4g2" aria-pressed="true">4G#2</button>
+                  </div>
+                </div>
+
+                <div class="custom-foot">
+                  <p class="hint warn-text" id="customWarn" hidden=""></p>
+                  <button class="btn btn-primary btn-block" type="button" id="applyCustom">应用分流</button>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <section class="page" id="page-balance" hidden="" aria-labelledby="balance-title">
+            <header class="page-head">
+              <button class="back" type="button" data-back="" aria-label="返回控制中心">
+                <svg class="od-icon nav-glyph" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">
+                  <path d="M15 5l-7 7 7 7"></path>
+                </svg>
+              </button>
+              <h2 class="page-title" tabindex="-1" id="balance-title">余量</h2>
+              <button class="head-action" type="button" id="balanceRefresh">刷新</button>
+            </header>
+            <div class="page-scroll">
+              <div class="tabs" role="tablist" aria-label="运营商">
+                <button role="tab" type="button" id="tab-unicom" aria-selected="true" aria-controls="panel-unicom" data-carrier="unicom" tabindex="0">联通</button>
+                <button role="tab" type="button" id="tab-telecom" aria-selected="false" aria-controls="panel-telecom" data-carrier="telecom" tabindex="-1">电信</button>
+              </div>
+
+              <section id="panel-unicom" role="tabpanel" aria-labelledby="tab-unicom">
+                <div class="panel balance-panel">
+                  <div class="bal-row">
+                    <span class="bal-label">已跳</span>
+                    <span class="bal-value">1.17 GB</span>
+                    <span class="bal-sub">通用已用</span>
+                  </div>
+                  <div class="bal-row">
+                    <span class="bal-label">已免</span>
+                    <span class="bal-value">0 KB</span>
+                    <span class="bal-sub">本期免费</span>
+                  </div>
+                  <div class="bal-row">
+                    <span class="bal-label">共免</span>
+                    <span class="bal-value">6.19 GB</span>
+                    <span class="bal-sub">定向已用 · 不限量</span>
+                  </div>
+                  <div class="bal-row">
+                    <span class="bal-label">跳点</span>
+                    <span class="bal-value">0 KB</span>
+                    <span class="bal-sub">今日 940.8 MB</span>
+                  </div>
+                </div>
+              </section>
+
+              <section id="panel-telecom" role="tabpanel" aria-labelledby="tab-telecom" hidden="">
+                <div class="panel balance-panel">
+                  <div class="bal-row">
+                    <span class="bal-label">已跳</span>
+                    <span class="bal-value">277.78 MB</span>
+                    <span class="bal-sub">通用已用</span>
+                  </div>
+                  <div class="bal-row">
+                    <span class="bal-label">已免</span>
+                    <span class="bal-value">—</span>
+                    <span class="bal-sub">本期免费</span>
+                  </div>
+                  <div class="bal-row">
+                    <span class="bal-label">共免</span>
+                    <span class="bal-value">5.80 GB</span>
+                    <span class="bal-sub">定向已用 · 无限 5.80 GB</span>
+                  </div>
+                  <div class="bal-row">
+                    <span class="bal-label">跳点</span>
+                    <span class="bal-value">0 KB</span>
+                    <span class="bal-sub">今日 3.40 MB</span>
+                  </div>
+                </div>
+              </section>
+
+              <div class="balance-meta">
+                <span id="balanceUpdated">更新于 刚刚</span>
+                <span>只读快照</span>
+              </div>
+            </div>
+          </section>
+
+          <section class="page" id="page-device" hidden="" aria-labelledby="device-title">
+            <header class="page-head">
+              <button class="back" type="button" data-back="" aria-label="返回控制中心">
+                <svg class="od-icon nav-glyph" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">
+                  <path d="M15 5l-7 7 7 7"></path>
+                </svg>
+              </button>
+              <h2 class="page-title" tabindex="-1" id="device-title">设备</h2>
+              <span class="head-tag is-ok">运行正常</span>
+            </header>
+
+            <div class="device-main">
+              <div class="device-top">
+                <div class="hero device-hero">
+                  <div class="hero-top">
+                    <span class="dot" aria-hidden="true"></span>
+                    <span class="hero-state">系统运行正常</span>
+                  </div>
+                  <div class="hero-sub">已运行 12 天 6 小时 · 三卡在线</div>
+                </div>
+
+                <div class="tabs device-tabs" role="tablist" aria-label="设备分类">
+                  <button role="tab" type="button" id="device-tab-system" aria-selected="true" aria-controls="device-panel-system" data-device-tab="system" tabindex="0">系统</button>
+                  <button role="tab" type="button" id="device-tab-traffic" aria-selected="false" aria-controls="device-panel-traffic" data-device-tab="traffic" tabindex="-1">流量</button>
+                  <button role="tab" type="button" id="device-tab-cool" aria-selected="false" aria-controls="device-panel-cool" data-device-tab="cool" tabindex="-1">散热</button>
+                  <button role="tab" type="button" id="device-tab-wireless" aria-selected="false" aria-controls="device-panel-wireless" data-device-tab="wireless" tabindex="-1">无线</button>
+                </div>
+              </div>
+
+              <div class="device-content" id="deviceContent">
+                <section class="device-panel" id="device-panel-system" role="tabpanel" aria-labelledby="device-tab-system" data-device-panel="system">
+                  <div class="panel status-list">
+                    <h3 class="group-title">系统</h3>
+                    <div class="stat-row"><span class="stat-label">内核</span><span class="stat-value">5.15.194-perf</span></div>
+                    <div class="stat-row"><span class="stat-label">系统</span><span class="stat-value">OpenWrt 23.05.4</span></div>
+                    <div class="stat-row"><span class="stat-label">运行时间</span><span class="stat-value">已运行 12 天 6 小时</span></div>
+                    <div class="stat-row"><span class="stat-label">负载 · CPU</span><span class="stat-value">56%</span></div>
+                    <div class="stat-row"><span class="stat-label">内存</span><span class="stat-value">0.62 / 1.6 GB</span></div>
+                    <div class="stat-row"><span class="stat-label">存储</span><span class="stat-value">623M / 1.8G</span></div>
+                  </div>
+
+                  <div class="panel status-list">
+                    <h3 class="group-title">电池</h3>
+                    <div class="stat-row"><span class="stat-label">电量</span><span class="stat-value">82%</span></div>
+                    <div class="stat-row"><span class="stat-label">电池温度</span><span class="stat-value">33 °C</span></div>
+                    <div class="stat-row"><span class="stat-label">电池电压</span><span class="stat-value">8.96 V</span></div>
+                  </div>
+                </section>
+
+                <section class="device-panel" id="device-panel-traffic" role="tabpanel" aria-labelledby="device-tab-traffic" data-device-panel="traffic" hidden>
+                  <div class="panel device-live">
+                    <div class="device-live-head"><span class="device-live-label">实时</span><span class="device-live-note">当前会话</span></div>
+                    <div class="device-live-values">
+                      <div class="live-item">
+                        <span class="live-dir">↓ 下行</span>
+                        <div class="live-num">2.4<span class="live-unit">MB/s</span></div>
+                      </div>
+                      <div class="live-item is-up">
+                        <span class="live-dir">↑ 上行</span>
+                        <div class="live-num">86<span class="live-unit">KB/s</span></div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div class="panel device-summary">
+                    <div class="device-sum-grid">
+                      <div class="device-sum-col">
+                        <div class="device-sum-title">今日</div>
+                        <div class="device-sum-line"><span>↓</span><span>1.24 GB</span></div>
+                        <div class="device-sum-line is-up"><span>↑</span><span>312 MB</span></div>
+                      </div>
+                      <div class="device-sum-col">
+                        <div class="device-sum-title">本月</div>
+                        <div class="device-sum-line"><span>↓</span><span>34.8 GB</span></div>
+                        <div class="device-sum-line is-up"><span>↑</span><span>6.4 GB</span></div>
+                      </div>
+                      <div class="device-sum-col">
+                        <div class="device-sum-title">累计</div>
+                        <div class="device-sum-line"><span>↓</span><span>186 GB</span></div>
+                        <div class="device-sum-line is-up"><span>↑</span><span>42.1 GB</span></div>
+                      </div>
+                    </div>
+                  </div>
+                </section>
+
+                <section class="device-panel" id="device-panel-cool" role="tabpanel" aria-labelledby="device-tab-cool" data-device-panel="cool" hidden>
+                  <div class="panel status-list">
+                    <h3 class="group-title">散热</h3>
+                    <div class="stat-row"><span class="stat-label">CPU 温度</span><span class="stat-value">49 °C</span></div>
+                    <div class="stat-row"><span class="stat-label">风扇状态</span><span class="stat-value" id="deviceFanState">20% · 自定义</span></div>
+                  </div>
+
+                  <div class="panel">
+                    <div class="device-card-head">
+                      <span class="device-card-title">风扇</span>
+                      <button class="btn btn-ghost device-mini" type="button" id="deviceCurveBtn">编辑曲线</button>
+                    </div>
+                    <div class="device-choice-grid" role="group" aria-label="风扇模式">
+                      <button class="btn btn-ghost device-choice" type="button" data-fan="stock" aria-pressed="false">原厂</button>
+                      <button class="btn btn-ghost device-choice" type="button" data-fan="custom" aria-pressed="true">自定义</button>
+                      <button class="btn btn-ghost device-choice" type="button" data-fan="on" aria-pressed="false">常开</button>
+                      <button class="btn btn-ghost device-choice" type="button" data-fan="off" aria-pressed="false">常闭</button>
+                    </div>
+                  </div>
+
+                  <div class="panel">
+                    <div class="device-card-head">
+                      <span class="device-card-title">液冷</span>
+                      <span class="device-state" id="deviceLiquidState">自动</span>
+                    </div>
+                    <div class="device-choice-row" role="group" aria-label="液冷模式">
+                      <button class="btn btn-ghost device-choice" type="button" data-liquid="auto" aria-pressed="true">自动</button>
+                      <button class="btn btn-ghost device-choice" type="button" data-liquid="low" aria-pressed="false">低档</button>
+                      <button class="btn btn-ghost device-choice" type="button" data-liquid="high" aria-pressed="false">高档</button>
+                    </div>
+                    <p class="hint device-hint">温控保护仍生效；危险操作需二次确认（原型可只画按钮态）。</p>
+                  </div>
+                </section>
+
+                <section class="device-panel" id="device-panel-wireless" role="tabpanel" aria-labelledby="device-tab-wireless" data-device-panel="wireless" hidden>
+                  <div class="seg device-band" role="group" aria-label="Wi-Fi 频段">
+                    <button type="button" data-band="2.4g" aria-pressed="true">2.4G</button>
+                    <button type="button" data-band="5g" aria-pressed="false">5G</button>
+                  </div>
+
+                  <div class="panel">
+                    <div class="device-card-head">
+                      <span class="device-card-title" id="deviceWifiTitle">2.4 GHz</span>
+                      <span class="device-state">功率设置</span>
+                    </div>
+                    <div class="device-setting-row">
+                      <span class="device-setting-label">日常功率</span>
+                      <div class="stepper">
+                        <button class="btn btn-ghost step-btn" type="button" id="wifiPowerDown" data-wifi="power" data-delta="-10" aria-label="降低日常功率">−</button>
+                        <span class="step-value" id="wifiPowerValue">80%</span>
+                        <button class="btn btn-ghost step-btn" type="button" id="wifiPowerUp" data-wifi="power" data-delta="10" aria-label="提高日常功率">+</button>
+                      </div>
+                    </div>
+                    <div class="device-setting-row">
+                      <span class="device-setting-label">上限</span>
+                      <div class="stepper">
+                        <button class="btn btn-ghost step-btn" type="button" id="wifiLimitDown" data-wifi="limit" data-delta="-1" aria-label="降低功率上限">−</button>
+                        <span class="step-value" id="wifiLimitValue">20 dBm</span>
+                        <button class="btn btn-ghost step-btn" type="button" id="wifiLimitUp" data-wifi="limit" data-delta="1" aria-label="提高功率上限">+</button>
+                      </div>
+                    </div>
+                    <div class="device-actions">
+                      <button class="btn btn-ghost" type="button" id="deviceWifiReset">还原</button>
+                      <button class="btn btn-primary" type="button" id="deviceWifiApply">应用</button>
+                    </div>
+                  </div>
+
+                  <p class="hint">应用后 Wi-Fi 会重载，已连接设备将短暂断线。</p>
+                </section>
+              </div>
+
+              <footer class="device-foot">
+                <button class="btn btn-ghost btn-block" type="button" id="deviceDiagnose">一键诊断</button>
+              </footer>
+            </div>
+          </section>
+
+          <section class="page" id="page-cooling-curve" hidden="" aria-labelledby="cooling-curve-title">
+            <header class="page-head">
+              <button class="back" type="button" id="coolingCurveBack" aria-label="返回设备">
+                <svg class="od-icon nav-glyph" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">
+                  <path d="M15 5l-7 7 7 7"></path>
+                </svg>
+              </button>
+              <h2 class="page-title" tabindex="-1" id="cooling-curve-title">风扇曲线</h2>
+            </header>
+
+            <div class="cooling-main">
+              <div class="tabs cooling-mode" role="tablist" aria-label="风扇曲线类型">
+                <button role="tab" type="button" id="cooling-tab-stock" aria-selected="false" aria-controls="cooling-panel-stock" data-curve-mode="stock" tabindex="-1">原厂曲线</button>
+                <button role="tab" type="button" id="cooling-tab-custom" aria-selected="true" aria-controls="cooling-panel-custom" data-curve-mode="custom" tabindex="0">自定义曲线</button>
+              </div>
+
+              <div class="panel cooling-chart">
+                <svg class="cooling-graph" id="coolingGraph" viewBox="0 0 280 92" role="img" aria-label="自定义风扇曲线">
+                  <line class="curve-axis" x1="0" y1="88" x2="280" y2="88"></line>
+                  <line class="curve-tick" x1="0" y1="88" x2="0" y2="91"></line>
+                  <line class="curve-tick" x1="140" y1="88" x2="140" y2="91"></line>
+                  <line class="curve-tick" x1="280" y1="88" x2="280" y2="91"></line>
+                  <path id="coolingCurvePath" class="curve-line" d=""></path>
+                  <g id="coolingCurveMarker" class="curve-marker"></g>
+                </svg>
+                <div class="cooling-axis" aria-hidden="true">
+                  <span>20°</span><span>50°</span><span>80°</span>
+                </div>
+                <div class="cooling-summary" id="coolingSummary">49°C · 预计 20% · 80°C 满速</div>
+              </div>
+
+              <div class="cooling-content" id="coolingContent">
+                <section class="cooling-panel" id="cooling-panel-stock" role="tabpanel" aria-labelledby="cooling-tab-stock" hidden="">
+                  <div class="panel cooling-stock">
+                    <div class="cooling-table-head"><span>触发温度</span><span>风扇输出</span></div>
+                    <div class="cooling-table-row"><span>44°C</span><span>20%</span></div>
+                    <div class="cooling-table-row"><span>48°C</span><span>40%</span></div>
+                    <div class="cooling-table-row"><span>53°C</span><span>70%</span></div>
+                  </div>
+                  <p class="hint cooling-hint">降至触发温度 - 4°C 才退档</p>
+                </section>
+
+                <section class="cooling-panel" id="cooling-panel-custom" role="tabpanel" aria-labelledby="cooling-tab-custom">
+                  <div class="panel cooling-editor">
+                    <div class="cooling-point-bar">
+                      <span class="cooling-caption" id="coolingPointCount">控制点 3/8</span>
+                      <div class="cooling-point-tools">
+                        <button class="btn btn-ghost cooling-mini cooling-mini-arrow" type="button" id="curvePrev" aria-label="上一个控制点">‹</button>
+                        <button class="btn btn-ghost cooling-mini cooling-mini-arrow" type="button" id="curveNext" aria-label="下一个控制点">›</button>
+                        <button class="btn btn-ghost cooling-mini" type="button" id="curveDelete">删除</button>
+                        <button class="btn btn-ghost cooling-mini" type="button" id="curveAdd">新增</button>
+                      </div>
+                    </div>
+                    <div class="cooling-setting">
+                      <span class="cooling-setting-label">温度</span>
+                      <div class="cooling-stepper">
+                        <button class="btn btn-ghost cooling-step" type="button" id="curveTempDown" aria-label="降低温度">−</button>
+                        <span class="cooling-value" id="curveTempValue">45°C</span>
+                        <button class="btn btn-ghost cooling-step" type="button" id="curveTempUp" aria-label="提高温度">+</button>
+                      </div>
+                    </div>
+                    <div class="cooling-setting">
+                      <span class="cooling-setting-label">转速</span>
+                      <div class="cooling-stepper">
+                        <button class="btn btn-ghost cooling-step" type="button" id="curveSpeedDown" aria-label="降低转速">−</button>
+                        <span class="cooling-value" id="curveSpeedValue">5%</span>
+                        <button class="btn btn-ghost cooling-step" type="button" id="curveSpeedUp" aria-label="提高转速">+</button>
+                      </div>
+                    </div>
+                    <div class="cooling-actions">
+                      <button class="btn btn-ghost" type="button" id="curveReset">恢复默认</button>
+                      <button class="btn btn-primary" type="button" id="curveApply">应用</button>
+                    </div>
+                  </div>
+                  <p class="hint cooling-hint" id="curveMessage">2–8 个控制点；温度须严格递增。</p>
+                </section>
+              </div>
+            </div>
+          </section>
+
+          <section class="page" id="page-charge" hidden="" aria-labelledby="charge-title">
+            <header class="page-head">
+              <button class="back" type="button" data-back="" aria-label="返回控制中心">
+                <svg class="od-icon nav-glyph" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">
+                  <path d="M15 5l-7 7 7 7"></path>
+                </svg>
+              </button>
+              <h2 class="page-title" tabindex="-1" id="charge-title">充电</h2>
+              <span class="head-tag is-ok">充电中</span>
+            </header>
+            <div class="page-scroll">
+              <div class="panel charge-hero">
+                <div class="charge-icon">
+                  <svg class="od-icon charge-glyph" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">
+                    <path d="M12.6 6.4l-4.2 6.2h3.2l-1 5 4.2-6.2h-3.2l1-5z"></path>
+                  </svg>
+                </div>
+                <div class="charge-power">17.4<span>W</span></div>
+                <div class="charge-state"><span class="dot" aria-hidden="true"></span>充电中 · 输入 8.96 V</div>
+              </div>
+
+              <div class="panel">
+                <div class="battery-bar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="82" aria-label="电量 82%">
+                  <span style="width:82%"></span>
+                </div>
+                <div class="battery-meta">
+                  <span>电量 82%</span>
+                  <span>距满 18%</span>
+                </div>
+              </div>
+
+              <div class="panel status-list">
+                <div class="stat-row"><span class="stat-label">输入电压</span><span class="stat-value">8.96 V</span></div>
+                <div class="stat-row"><span class="stat-label">充电电流</span><span class="stat-value">1.94 A</span></div>
+                <div class="stat-row"><span class="stat-label">充电功率</span><span class="stat-value">17.4 W</span></div>
+                <div class="stat-row"><span class="stat-label">电池温度</span><span class="stat-value">33 °C</span></div>
+              </div>
+
+              <p class="hint">功率随电量与温度变化；数值为只读采样。</p>
+            </div>
+          </section>
+        </div>
+
+        <div class="toast" id="toast" role="status" aria-live="polite"></div>
+        <div class="sheet-scrim" id="sheetScrim" hidden=""></div>
+        <div class="confirm" id="confirmSheet" role="dialog" aria-modal="true" aria-labelledby="confirmTitle" hidden="">
+          <h2 id="confirmTitle">停止服务？</h2>
+          <p id="confirmBody">停止后设备将直连，分流与免流暂停。</p>
+          <div class="confirm-actions">
+            <button class="btn btn-ghost" type="button" id="confirmCancel">取消</button>
+            <button class="btn btn-danger" type="button" id="confirmOk">停止</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="stage-foot">点按九宫格进入子页 · “主题”格切换日夜</div>
+  <div class="stage-demo" role="group" aria-label="代理页演示状态">
+    <span class="stage-demo-label">代理演示</span>
+    <button type="button" data-demo="singbox" aria-pressed="true">sing-box</button>
+    <button type="button" data-demo="mihomo" aria-pressed="false">mihomo</button>
+    <button type="button" data-demo="error" aria-pressed="false">异常</button>
+  </div>
+</main>
+
+<script>
+(function () {
+  "use strict";
+
+  var root = document.documentElement;
+  var screen = document.getElementById("screen");
+  var home = document.getElementById("page-home");
+  var pages = Array.prototype.slice.call(document.querySelectorAll(".page"));
+  var toastEl = document.getElementById("toast");
+  var sheetScrim = document.getElementById("sheetScrim");
+  var confirmSheet = document.getElementById("confirmSheet");
+  var confirmTitle = document.getElementById("confirmTitle");
+  var confirmBody = document.getElementById("confirmBody");
+  var confirmOk = document.getElementById("confirmOk");
+  var confirmCancel = document.getElementById("confirmCancel");
+  var themeTile = document.getElementById("themeTile");
+
+  var els = {
+    clock: document.getElementById("clock"),
+    homeDot: document.getElementById("homeDot"),
+    homeService: document.getElementById("homeService"),
+    homeMode: document.getElementById("homeMode"),
+    tileProxyDot: document.getElementById("tileProxyDot"),
+    pxTag: document.getElementById("pxTag"),
+    pxDot: document.getElementById("pxDot"),
+    pxState: document.getElementById("pxState"),
+    pxMode: document.getElementById("pxMode"),
+    pxSub: document.getElementById("pxSub"),
+    pxCore: document.getElementById("pxCore"),
+    pxMem: document.getElementById("pxMem"),
+    pxPlane: document.getElementById("pxPlane"),
+    pxDhcp: document.getElementById("pxDhcp"),
+    pxRateDown: document.getElementById("pxRateDown"),
+    pxRateUp: document.getElementById("pxRateUp"),
+    pxTotalDown: document.getElementById("pxTotalDown"),
+    pxTotalUp: document.getElementById("pxTotalUp"),
+    pxPrimary: document.getElementById("pxPrimary"),
+    pxSecondary: document.getElementById("pxSecondary"),
+    pxProviders: document.getElementById("pxProviders"),
+    pxWatchdog: document.getElementById("pxWatchdog"),
+    pxKeeper: document.getElementById("pxKeeper"),
+    pxToSingbox: document.getElementById("pxToSingbox"),
+    pxToMihomo: document.getElementById("pxToMihomo"),
+    pxSwitchNote: document.getElementById("pxSwitchNote"),
+    pxHint: document.getElementById("pxHint"),
+    pxUpdated: document.getElementById("pxUpdated"),
+    pxMessage: document.getElementById("pxMessage"),
+    wbTag: document.getElementById("wbTag"),
+    wbNote: document.getElementById("wbNote"),
+    wbWeights: document.getElementById("wbWeights"),
+    wbWeightRows: document.getElementById("wbWeightRows"),
+    wbCustom: document.getElementById("wbCustom"),
+    tcpSummary: document.getElementById("tcpSummary"),
+    udpSummary: document.getElementById("udpSummary"),
+    customWarn: document.getElementById("customWarn"),
+    applyCustom: document.getElementById("applyCustom"),
+    balanceRefresh: document.getElementById("balanceRefresh"),
+    balanceUpdated: document.getElementById("balanceUpdated")
+  };
+
+  var state = {
+    engine: "singbox",
+    service: "running",
+    switching: false,
+    message: "sing-box 运行中",
+    preset: "auto",
+    uiPreset: "auto",
+    carrier: "unicom",
+    custom: {
+      tcp: new Set(["5g"]),
+      udp: new Set(["4g1", "4g2"])
+    }
+  };
+
+  var CARD_LABELS = { "5g": "5G", "4g1": "4G#1", "4g2": "4G#2" };
+  var PRESET_LABELS = { auto: "自动·质量", shared: "三卡共池", custom: "自定义" };
+  var AUTO_WEIGHTS = {
+    tcp: { "5g": 9, "4g1": 1, "4g2": 1 },
+    udp: { "5g": 4, "4g1": 1, "4g2": 1 }
+  };
+  var SHARED_WEIGHTS = {
+    tcp: { "5g": 1, "4g1": 1, "4g2": 1 },
+    udp: { "5g": 1, "4g1": 1, "4g2": 1 }
+  };
+
+  var toastTimer = 0;
+  var sbTimer = 0;
+  var engineTimer = 0;
+  var lastTrigger = null;
+  var confirmCallback = null;
+  var confirmTrigger = null;
+
+  function currentTheme() {
+    return root.dataset.screenTheme === "day" ? "day" : "night";
+  }
+
+  function applyTheme(theme, announce) {
+    root.dataset.screenTheme = theme;
+    try {
+      localStorage.setItem("topflow-screen-theme", theme);
+    } catch (error) {
+      /* Keep the in-memory theme when storage is unavailable. */
+    }
+    var isDay = theme === "day";
+    themeTile.setAttribute(
+      "aria-label",
+      "主题，当前" + (isDay ? "日间" : "夜间") + "，点击切换为" + (isDay ? "夜间" : "日间")
+    );
+    if (announce) {
+      showToast(isDay ? "已切换为日间模式" : "已切换为夜间模式");
+    }
+  }
+
+  function setClock() {
+    var now = new Date();
+    var hh = String(now.getHours()).padStart(2, "0");
+    var mm = String(now.getMinutes()).padStart(2, "0");
+    els.clock.textContent = hh + ":" + mm;
+    els.clock.setAttribute("datetime", now.toISOString());
+  }
+
+  function showToast(message) {
+    toastEl.textContent = message;
+    toastEl.classList.add("is-visible");
+    window.clearTimeout(toastTimer);
+    toastTimer = window.setTimeout(function () {
+      toastEl.classList.remove("is-visible");
+    }, 1800);
+  }
+
+  function showHome() {
+    pages.forEach(function (page) { page.hidden = true; });
+    home.hidden = false;
+    screen.dataset.view = "home";
+  }
+
+  function openPage(id, trigger) {
+    var target = document.getElementById("page-" + id);
+    if (!target) return;
+    lastTrigger = trigger || null;
+    home.hidden = true;
+    pages.forEach(function (page) { page.hidden = page !== target; });
+    screen.dataset.view = id;
+    var heading = target.querySelector(".page-title");
+    if (heading) {
+      window.requestAnimationFrame(function () { heading.focus(); });
+    }
+  }
+
+  function closePage() {
+    showHome();
+    if (lastTrigger && document.contains(lastTrigger) && !lastTrigger.disabled) {
+      lastTrigger.focus();
+    } else {
+      var firstTile = home.querySelector(".tile:not(.is-disabled):not(.is-empty)");
+      if (firstTile) firstTile.focus();
+    }
+  }
+
+  function openConfirm(options) {
+    if (!confirmSheet.hidden) return;
+    confirmTitle.textContent = options.title;
+    confirmBody.textContent = options.body;
+    confirmOk.textContent = options.okLabel;
+    confirmOk.className = "btn " + (options.danger ? "btn-danger" : "btn-primary");
+    confirmCallback = options.onConfirm;
+    confirmTrigger = options.trigger || document.activeElement;
+    sheetScrim.hidden = false;
+    confirmSheet.hidden = false;
+    confirmCancel.focus();
+    document.addEventListener("keydown", trapConfirmFocus);
+  }
+
+  function closeConfirm(runAction) {
+    if (confirmSheet.hidden) return;
+    sheetScrim.hidden = true;
+    confirmSheet.hidden = true;
+    document.removeEventListener("keydown", trapConfirmFocus);
+    var callback = confirmCallback;
+    var trigger = confirmTrigger;
+    confirmCallback = null;
+    confirmTrigger = null;
+    if (runAction && callback) callback();
+    if (trigger && document.contains(trigger) && !trigger.disabled) {
+      trigger.focus();
+    } else {
+      var heading = document.querySelector(".page:not([hidden]) .page-title");
+      if (heading) heading.focus();
+    }
+  }
+
+  function trapConfirmFocus(event) {
+    if (event.key !== "Tab" || confirmSheet.hidden) return;
+    var focusables = Array.prototype.slice.call(confirmSheet.querySelectorAll("button"));
+    if (!focusables.length) return;
+    var first = focusables[0];
+    var last = focusables[focusables.length - 1];
+    if (event.shiftKey && document.activeElement === first) {
+      event.preventDefault();
+      last.focus();
+    } else if (!event.shiftKey && document.activeElement === last) {
+      event.preventDefault();
+      first.focus();
+    }
+  }
+
+  function updateHomeSummary() {
+    var serviceText;
+    var modeText;
+    var tone = "ok";
+    if (state.switching) {
+      serviceText = "代理切换中";
+      modeText = (state.engine === "mihomo" || state.engine === "error") ? "netns · DHCP 0.254" : "eBPF · DHCP 0.1";
+      tone = "warn";
+    } else if (state.engine === "mihomo") {
+      serviceText = "mihomo 回滚态";
+      modeText = "netns · DHCP 0.254";
+      tone = "warn";
+    } else if (state.engine === "error") {
+      serviceText = "mihomo 未启动";
+      modeText = "DHCP 0.254 · 可重试";
+      tone = "danger";
+    } else if (state.service === "stopped") {
+      serviceText = "代理已停止";
+      modeText = "直连 · DHCP 未下发";
+      tone = "muted";
+    } else if (state.service === "starting") {
+      serviceText = "代理启动中";
+      modeText = "eBPF · DHCP 0.1";
+      tone = "warn";
+    } else if (state.service === "restarting") {
+      serviceText = "代理重启中";
+      modeText = "eBPF · DHCP 0.1";
+      tone = "warn";
+    } else {
+      serviceText = "代理运行中";
+      modeText = "eBPF · DHCP 0.1";
+    }
+
+    els.homeService.textContent = serviceText;
+    els.homeMode.textContent = modeText;
+    els.homeDot.className = "dot" + (tone === "ok" ? "" : " is-" + tone);
+
+    var tileDot = "tile-dot";
+    if (tone === "muted") tileDot += " is-muted";
+    else if (tone === "warn") tileDot += " is-warn";
+    else if (tone === "danger") tileDot += " is-danger";
+    els.tileProxyDot.className = tileDot;
+
+    var tile = document.querySelector('.tile[data-page="proxy"]');
+    if (tile) tile.setAttribute("aria-label", "代理，" + serviceText.replace(/^代理/, "") + "，打开代理页");
+  }
+
+  function updateProxyUI() {
+    var engine = state.engine;
+    var service = state.service;
+    var switching = state.switching;
+    var onSingbox = engine === "singbox";
+    var onMihomo = engine === "mihomo";
+    var onError = engine === "error";
+    var serviceBusy = onSingbox && (service === "starting" || service === "restarting");
+    var lockSwitch = switching || serviceBusy;
+
+    var tagText = "运行中";
+    var tagTone = "ok";
+    var stateText = "运行正常";
+    var stateTone = "ok";
+    var modeText = "eBPF 模式";
+    var modeClass = "soft";
+    var subText = "PID 7822 · 自动拉起";
+    var coreText = "1.14.4-reF1nd";
+    var memText = "105.4 MB";
+    var planeText = "eBPF 已接管";
+    var planeTone = "";
+    var dhcpText = "0.1";
+    var dhcpTone = "";
+    var rateDown = "↓ 2.4 MB/s";
+    var rateUp = "↑ 86 KB/s";
+    var totalDown = "↓ 8.79 GB";
+    var totalUp = "↑ 321 MB";
+    var providers = "12";
+    var watchdog = "开";
+    var keeper = "开";
+    var primaryLabel = "停止服务";
+    var primaryClass = "btn btn-danger";
+    var primaryDisabled = false;
+    var secondaryLabel = "重启服务";
+    var secondaryDisabled = false;
+    var switchNote = "切换约 3 秒";
+    var hint = "切回 mihomo 会暂停服务；二次确认后执行。";
+
+    if (onMihomo) {
+      tagText = "回滚态"; tagTone = "warn";
+      stateText = "mihomo 运行中"; stateTone = "ok";
+      modeText = "回滚态"; modeClass = "warn";
+      subText = "PID 7621 · init 托管";
+      coreText = "mihomo"; memText = "96.8 MB";
+      planeText = "netns";
+      dhcpText = "0.254";
+      rateDown = "↓ 1.6 MB/s"; rateUp = "↑ 52 KB/s";
+      totalDown = "↓ 5.42 GB"; totalUp = "↑ 198 MB";
+      primaryLabel = "需先切回"; primaryClass = "btn btn-ghost"; primaryDisabled = true;
+      secondaryLabel = "需先切回"; secondaryDisabled = true;
+      switchNote = "切换约 3 秒";
+      hint = "回滚态只读；切回 sing-box 后恢复启停。";
+    } else if (onError) {
+      tagText = "回滚中断"; tagTone = "danger";
+      stateText = "mihomo 未启动"; stateTone = "danger";
+      modeText = "回滚中断"; modeClass = "danger";
+      subText = "进程缺失 · DHCP 0.254 未对齐";
+      coreText = "mihomo"; memText = "未加载";
+      planeText = "无进程"; planeTone = "danger-text";
+      dhcpText = "0.254 · 未对齐"; dhcpTone = "danger-text";
+      rateDown = "↓ 0 B/s"; rateUp = "↑ 0 B/s";
+      totalDown = "↓ 5.42 GB"; totalUp = "↑ 198 MB";
+      watchdog = "关"; keeper = "关";
+      primaryLabel = "需先切回"; primaryClass = "btn btn-ghost"; primaryDisabled = true;
+      secondaryLabel = "需先切回"; secondaryDisabled = true;
+      switchNote = "进程缺失，可重试";
+      hint = "mihomo 进程缺失；可重试切回，或先切到 sing-box。";
+    } else if (service === "stopped") {
+      tagText = "已停止"; tagTone = "muted";
+      stateText = "服务已停止"; stateTone = "muted";
+      modeText = "直连模式"; modeClass = "neutral";
+      subText = "服务未运行 · 数据面未接管";
+      memText = "未加载";
+      planeText = "未接管"; planeTone = "danger-text";
+      dhcpText = "未下发"; dhcpTone = "danger-text";
+      rateDown = "↓ 0 B/s"; rateUp = "↑ 0 B/s";
+      primaryLabel = "启动服务"; primaryClass = "btn btn-primary";
+      secondaryDisabled = true;
+      switchNote = "可切回 mihomo";
+      hint = "启动后恢复 eBPF 数据面与分流。";
+    } else if (service === "starting") {
+      tagText = "启动中"; tagTone = "warn";
+      stateText = "正在启动…"; stateTone = "warn";
+      modeText = "eBPF 模式"; modeClass = "soft";
+      subText = "正在启动服务与数据面";
+      memText = "启动中";
+      planeText = "接管中"; planeTone = "warn-text";
+      dhcpText = "等待中";
+      rateDown = "↓ 0 B/s"; rateUp = "↑ 0 B/s";
+      primaryLabel = "启动中…"; primaryClass = "btn btn-primary"; primaryDisabled = true;
+      secondaryDisabled = true;
+      switchNote = "正在启动";
+      hint = "正在切换状态，请稍候。";
+    } else if (service === "restarting") {
+      tagText = "重启中"; tagTone = "warn";
+      stateText = "正在重启…"; stateTone = "warn";
+      modeText = "eBPF 模式"; modeClass = "soft";
+      subText = "正在重启服务与数据面";
+      memText = "重载中";
+      planeText = "重连中"; planeTone = "warn-text";
+      dhcpText = "保持中";
+      rateDown = "↓ 0 B/s"; rateUp = "↑ 0 B/s";
+      primaryLabel = "停止服务"; primaryClass = "btn btn-danger"; primaryDisabled = true;
+      secondaryLabel = "重启中…"; secondaryDisabled = true;
+      switchNote = "正在重启";
+      hint = "正在切换状态，请稍候。";
+    }
+
+    if (switching) {
+      tagText = "切换中"; tagTone = "warn";
+      stateText = "切换中…"; stateTone = "warn";
+      modeText = "切换中"; modeClass = "warn";
+      subText = "正在切换核心与数据面";
+      memText = "切换中";
+      rateDown = "↓ 0 B/s"; rateUp = "↑ 0 B/s";
+      primaryLabel = "切换中…"; primaryClass = "btn btn-ghost"; primaryDisabled = true;
+      secondaryLabel = "切换中…"; secondaryDisabled = true;
+      switchNote = "正在切换，请稍候";
+      hint = "核心切换中，按键已锁定。";
+    }
+
+    els.pxTag.textContent = tagText;
+    els.pxTag.className = "head-tag is-" + tagTone;
+    els.pxState.textContent = stateText;
+    els.pxState.className = "hero-state" +
+      (stateTone === "danger" ? " danger-text" : stateTone === "warn" ? " warn-text" : "");
+    els.pxMode.textContent = modeText;
+    els.pxMode.className = "badge " + modeClass;
+    els.pxDot.className = "dot" + (tagTone === "ok" ? "" : " is-" + tagTone);
+    els.pxSub.textContent = subText;
+    els.pxCore.textContent = coreText;
+    els.pxMem.textContent = memText;
+    els.pxPlane.textContent = planeText;
+    els.pxPlane.className = "field-value" + (planeTone ? " " + planeTone : "");
+    els.pxDhcp.textContent = dhcpText;
+    els.pxDhcp.className = "field-value" + (dhcpTone ? " " + dhcpTone : "");
+    els.pxRateDown.textContent = rateDown;
+    els.pxRateUp.textContent = rateUp;
+    els.pxTotalDown.textContent = totalDown;
+    els.pxTotalUp.textContent = totalUp;
+    els.pxPrimary.textContent = primaryLabel;
+    els.pxPrimary.className = primaryClass;
+    els.pxPrimary.disabled = primaryDisabled;
+    els.pxSecondary.textContent = secondaryLabel;
+    els.pxSecondary.className = "btn btn-ghost";
+    els.pxSecondary.disabled = secondaryDisabled;
+    els.pxProviders.textContent = providers;
+    els.pxWatchdog.textContent = watchdog;
+    els.pxKeeper.textContent = keeper;
+    els.pxSwitchNote.textContent = switchNote;
+    els.pxHint.textContent = hint;
+
+    els.pxToSingbox.textContent = switching ? "切换中…" : "切到 sing-box";
+    els.pxToSingbox.disabled = lockSwitch || onSingbox;
+    els.pxToMihomo.textContent = switching ? "切换中…" : "切回 mihomo";
+    els.pxToMihomo.disabled = lockSwitch || onMihomo;
+
+    var now = new Date();
+    var hh = String(now.getHours()).padStart(2, "0");
+    var mm = String(now.getMinutes()).padStart(2, "0");
+    var ss = String(now.getSeconds()).padStart(2, "0");
+    els.pxUpdated.textContent = "更新于 " + hh + ":" + mm + ":" + ss;
+
+    var fallback = switching ? "正在切换…" :
+      onMihomo ? "mihomo 回滚态" :
+      onError ? "mihomo 未启动" :
+      service === "stopped" ? "服务已停止" :
+      service === "starting" ? "正在启动…" :
+      service === "restarting" ? "正在重启…" : "sing-box 运行中";
+    els.pxMessage.textContent = state.message || fallback;
+
+    updateHomeSummary();
+
+    document.querySelectorAll("[data-demo]").forEach(function (button) {
+      var active = (button.dataset.demo === "singbox" && state.engine === "singbox") ||
+        (button.dataset.demo === "mihomo" && state.engine === "mihomo") ||
+        (button.dataset.demo === "error" && state.engine === "error");
+      button.setAttribute("aria-pressed", active ? "true" : "false");
+    });
+  }
+
+  function startSingbox() {
+    if (state.engine !== "singbox" || state.switching) return;
+    window.clearTimeout(sbTimer);
+    state.service = "starting";
+    state.message = "正在启动服务…";
+    updateProxyUI();
+    sbTimer = window.setTimeout(function () {
+      state.service = "running";
+      state.message = "服务已启动";
+      updateProxyUI();
+      showToast("服务已启动");
+    }, 900);
+  }
+
+  function stopSingbox() {
+    if (state.engine !== "singbox" || state.switching) return;
+    window.clearTimeout(sbTimer);
+    state.service = "stopped";
+    state.message = "服务已停止";
+    updateProxyUI();
+    showToast("服务已停止");
+  }
+
+  function restartSingbox() {
+    if (state.engine !== "singbox" || state.switching) return;
+    window.clearTimeout(sbTimer);
+    state.service = "restarting";
+    state.message = "正在重启服务…";
+    updateProxyUI();
+    sbTimer = window.setTimeout(function () {
+      state.service = "running";
+      state.message = "服务已重启";
+      updateProxyUI();
+      showToast("服务已重启");
+    }, 1200);
+  }
+
+  function switchEngine(target) {
+    if (state.switching) return;
+    var retry = state.engine === "error" && target === "mihomo";
+    window.clearTimeout(engineTimer);
+    state.switching = true;
+    state.message = retry ? "正在重试 mihomo…" :
+      target === "mihomo" ? "正在切回 mihomo…" : "正在切到 sing-box…";
+    updateProxyUI();
+    engineTimer = window.setTimeout(function () {
+      state.engine = target;
+      state.service = "running";
+      state.switching = false;
+      state.message = retry ? "mihomo 已重新启动" :
+        target === "mihomo" ? "已切回 mihomo" : "已切到 sing-box";
+      updateProxyUI();
+      showToast(state.message);
+    }, 1100);
+  }
+
+  function renderWeights(kind) {
+    var weights = kind === "shared" ? SHARED_WEIGHTS : AUTO_WEIGHTS;
+    var html = ["tcp", "udp"].map(function (proto) {
+      var group = weights[proto];
+      var keys = Object.keys(group);
+      var max = Math.max.apply(null, keys.map(function (key) { return group[key]; }));
+      var rows = keys.map(function (key) {
+        var value = group[key];
+        var width = Math.round((value / max) * 100);
+        return '<div class="w-item"><span class="w-label">' + CARD_LABELS[key] + '</span><span class="w-bar"><i style="width:' + width + '%"></i></span><span class="w-val">' + value + '</span></div>';
+      }).join("");
+      return '<div class="weight-group"><div class="weight-group-head"><span>' + proto.toUpperCase() + '</span><span>' + (kind === "shared" ? "均分" : "质量加权") + '</span></div>' + rows + '</div>';
+    }).join("");
+    els.wbWeightRows.innerHTML = html;
+  }
+
+  function customSummary(set) {
+    var labels = Object.keys(CARD_LABELS).filter(function (key) { return set.has(key); }).map(function (key) { return CARD_LABELS[key]; });
+    return labels.length ? labels.join(" · ") : "未选择";
+  }
+
+  function updateChips() {
+    document.querySelectorAll(".chip").forEach(function (chip) {
+      var set = state.custom[chip.dataset.proto];
+      chip.setAttribute("aria-pressed", set.has(chip.dataset.card) ? "true" : "false");
+    });
+    els.tcpSummary.textContent = customSummary(state.custom.tcp);
+    els.udpSummary.textContent = customSummary(state.custom.udp);
+  }
+
+  function validateCustom() {
+    var tcpCount = state.custom.tcp.size;
+    var udpCount = state.custom.udp.size;
+    var message = "";
+    var kind = "";
+    if (tcpCount === 0) {
+      message = "TCP 至少保留一张卡。";
+      kind = "danger";
+    } else if (udpCount === 0) {
+      message = "UDP 至少保留一张卡。";
+      kind = "danger";
+    } else if (udpCount === 1) {
+      message = "UDP 只剩一张卡；掉线时不会自动溢出。";
+      kind = "warn";
+    }
+    els.customWarn.hidden = !message;
+    els.customWarn.textContent = message;
+    els.customWarn.className = "hint " + (kind === "danger" ? "danger-text" : "warn-text");
+    els.applyCustom.disabled = tcpCount === 0 || udpCount === 0;
+  }
+
+  function updateWanbalUI() {
+    document.querySelectorAll("[data-preset]").forEach(function (button) {
+      button.setAttribute("aria-pressed", button.dataset.preset === state.uiPreset ? "true" : "false");
+    });
+
+    els.wbTag.textContent = PRESET_LABELS[state.preset];
+    var customOpen = state.uiPreset === "custom";
+    els.wbWeights.hidden = customOpen;
+    els.wbCustom.hidden = !customOpen;
+
+    if (customOpen) {
+      if (state.preset === "custom") {
+        els.wbNote.textContent = "自定义；按下方选择固定走卡。";
+      } else {
+        els.wbNote.textContent = "自定义待应用；当前仍按“" + PRESET_LABELS[state.preset] + "”运行。";
+      }
+      updateChips();
+      validateCustom();
+    } else {
+      els.wbNote.textContent = state.uiPreset === "shared"
+        ? "三卡共池；按连接在三张卡之间分配。"
+        : "质量加权共池；TCP 偏 5G，UDP 偏 4G。";
+      renderWeights(state.uiPreset);
+    }
+    updateHomeSummary();
+  }
+
+  function setPreset(preset, announce) {
+    state.preset = preset;
+    state.uiPreset = preset;
+    updateWanbalUI();
+    if (announce) showToast("分流已切换为" + PRESET_LABELS[preset]);
+  }
+
+  function setCarrier(carrier) {
+    state.carrier = carrier;
+  document.querySelectorAll('[role="tab"][data-device-tab]').forEach(function (tab) {
+    tab.addEventListener("click", function () {
+      setDeviceTab(tab.dataset.deviceTab);
+    });
+    tab.addEventListener("keydown", function (event) {
+      if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
+      event.preventDefault();
+      var tabs = Array.prototype.slice.call(document.querySelectorAll('[role="tab"][data-device-tab]'));
+      var index = tabs.indexOf(tab);
+      var delta = event.key === "ArrowRight" ? 1 : -1;
+      var next = tabs[(index + delta + tabs.length) % tabs.length];
+      setDeviceTab(next.dataset.deviceTab);
+      next.focus();
+    });
+  });
+
+  document.querySelectorAll("[data-fan]").forEach(function (button) {
+    button.addEventListener("click", function () {
+      setDeviceFan(button.dataset.fan);
+    });
+  });
+
+  document.querySelectorAll("[data-liquid]").forEach(function (button) {
+    button.addEventListener("click", function () {
+      setDeviceLiquid(button.dataset.liquid);
+    });
+  });
+
+  document.querySelectorAll("[data-band]").forEach(function (button) {
+    button.addEventListener("click", function () {
+      deviceBand = button.dataset.band;
+      renderDeviceWifi();
+    });
+  });
+
+  document.querySelectorAll("[data-wifi]").forEach(function (button) {
+    button.addEventListener("click", function () {
+      if (button.disabled) return;
+      var cfg = deviceWifi[deviceBand];
+      var delta = Number(button.dataset.delta);
+      if (button.dataset.wifi === "power") {
+        cfg.power = Math.min(100, Math.max(10, cfg.power + delta));
+      } else {
+        cfg.limit = Math.min(30, Math.max(10, cfg.limit + delta));
+      }
+      renderDeviceWifi();
+    });
+  });
+
+  var deviceWifiReset = document.getElementById("deviceWifiReset");
+  if (deviceWifiReset) {
+    deviceWifiReset.addEventListener("click", function () {
+      var cfg = deviceWifi[deviceBand];
+      cfg.power = cfg.defPower;
+      cfg.limit = cfg.defLimit;
+      renderDeviceWifi();
+      showToast("已还原 " + cfg.title + " 默认功率");
+    });
+  }
+
+  var deviceWifiApply = document.getElementById("deviceWifiApply");
+  if (deviceWifiApply) {
+    deviceWifiApply.addEventListener("click", function () {
+      if (deviceWifiApply.disabled) return;
+      var cfg = deviceWifi[deviceBand];
+      deviceWifiApply.disabled = true;
+      deviceWifiApply.textContent = "应用中…";
+      window.setTimeout(function () {
+        deviceWifiApply.disabled = false;
+        deviceWifiApply.textContent = "应用";
+        showToast("已应用 " + cfg.title + " · " + cfg.power + "% / " + cfg.limit + " dBm");
+      }, 700);
+    });
+  }
+
+  var deviceCurveBtn = document.getElementById("deviceCurveBtn");
+  if (deviceCurveBtn) {
+    deviceCurveBtn.addEventListener("click", function () {
+      enterCurvePage();
+    });
+  }
+
+  var deviceDiagnose = document.getElementById("deviceDiagnose");
+  if (deviceDiagnose) {
+    deviceDiagnose.addEventListener("click", function () {
+      if (deviceDiagnose.disabled) return;
+      deviceDiagnose.disabled = true;
+      deviceDiagnose.textContent = "诊断中…";
+      window.setTimeout(function () {
+        deviceDiagnose.disabled = false;
+        deviceDiagnose.textContent = "一键诊断";
+        showToast("诊断完成 · 未发现异常");
+      }, 900);
+    });
+  }
+
+  document.querySelectorAll('[role="tab"][data-carrier]').forEach(function (tab) {
+      var active = tab.dataset.carrier === carrier;
+      tab.setAttribute("aria-selected", active ? "true" : "false");
+      tab.tabIndex = active ? 0 : -1;
+    });
+    var unicom = document.getElementById("panel-unicom");
+    var telecom = document.getElementById("panel-telecom");
+    if (unicom) unicom.hidden = carrier !== "unicom";
+    if (telecom) telecom.hidden = carrier !== "telecom";
+  }
+
+  var deviceBand = "2.4g";
+  var deviceWifi = {
+    "2.4g": { title: "2.4 GHz", power: 80, limit: 20, defPower: 80, defLimit: 20 },
+    "5g": { title: "5 GHz", power: 90, limit: 23, defPower: 90, defLimit: 23 }
+  };
+
+  function setDeviceTab(tab) {
+    document.querySelectorAll('[role="tab"][data-device-tab]').forEach(function (button) {
+      var active = button.dataset.deviceTab === tab;
+      button.setAttribute("aria-selected", active ? "true" : "false");
+      button.tabIndex = active ? 0 : -1;
+    });
+    document.querySelectorAll("[data-device-panel]").forEach(function (panel) {
+      panel.hidden = panel.dataset.devicePanel !== tab;
+    });
+    var content = document.getElementById("deviceContent");
+    if (content) content.scrollTop = 0;
+  }
+
+  function renderDeviceWifi() {
+    var cfg = deviceWifi[deviceBand];
+    document.querySelectorAll("[data-band]").forEach(function (button) {
+      button.setAttribute("aria-pressed", button.dataset.band === deviceBand ? "true" : "false");
+    });
+    var title = document.getElementById("deviceWifiTitle");
+    var power = document.getElementById("wifiPowerValue");
+    var limit = document.getElementById("wifiLimitValue");
+    if (title) title.textContent = cfg.title;
+    if (power) power.textContent = cfg.power + "%";
+    if (limit) limit.textContent = cfg.limit + " dBm";
+    var powerDown = document.getElementById("wifiPowerDown");
+    var powerUp = document.getElementById("wifiPowerUp");
+    var limitDown = document.getElementById("wifiLimitDown");
+    var limitUp = document.getElementById("wifiLimitUp");
+    if (powerDown) powerDown.disabled = cfg.power <= 10;
+    if (powerUp) powerUp.disabled = cfg.power >= 100;
+    if (limitDown) limitDown.disabled = cfg.limit <= 10;
+    if (limitUp) limitUp.disabled = cfg.limit >= 30;
+  }
+
+  function setDeviceFan(mode) {
+    document.querySelectorAll("[data-fan]").forEach(function (button) {
+      button.setAttribute("aria-pressed", button.dataset.fan === mode ? "true" : "false");
+    });
+    var labels = {
+      stock: "自动 · 原厂",
+      custom: "20% · 自定义",
+      on: "100% · 常开",
+      off: "0% · 常闭"
+    };
+    var stateEl = document.getElementById("deviceFanState");
+    if (stateEl) stateEl.textContent = labels[mode] || labels.custom;
+    curveApplied = mode === "custom" ? "custom" : mode;
+  }
+
+  function setDeviceLiquid(mode) {
+    document.querySelectorAll("[data-liquid]").forEach(function (button) {
+      button.setAttribute("aria-pressed", button.dataset.liquid === mode ? "true" : "false");
+    });
+    var labels = { auto: "自动", low: "低档", high: "高档" };
+    var stateEl = document.getElementById("deviceLiquidState");
+    if (stateEl) stateEl.textContent = labels[mode] || labels.auto;
+  }
+
+  var CURVE_DEFAULT = [
+    { t: 40, s: 0 },
+    { t: 44, s: 0 },
+    { t: 45, s: 5 },
+    { t: 46, s: 8 },
+    { t: 47, s: 11 },
+    { t: 48, s: 14 },
+    { t: 50, s: 20 },
+    { t: 70, s: 70 }
+  ];
+  var curvePoints = CURVE_DEFAULT.map(function (point) { return { t: point.t, s: point.s }; });
+  var curveSel = 2;
+  var curveMode = "custom";
+  var curveApplied = "custom";
+
+  function enterCurvePage() {
+    setCurveMode("custom");
+    renderCurve();
+    openPage("cooling-curve", deviceCurveBtn);
+  }
+
+  function leaveCurvePage() {
+    var devicePage = document.getElementById("page-device");
+    if (!devicePage) {
+      closePage();
+      return;
+    }
+    home.hidden = true;
+    pages.forEach(function (page) { page.hidden = page !== devicePage; });
+    screen.dataset.view = "device";
+    setDeviceTab("cool");
+    lastTrigger = deviceCurveBtn;
+    if (deviceCurveBtn && !deviceCurveBtn.disabled) {
+      deviceCurveBtn.focus();
+    } else {
+      var heading = devicePage.querySelector(".page-title");
+      if (heading) heading.focus();
+    }
+  }
+
+  function formatCurveTemp(value) {
+    return (Math.round(value) === value ? String(value) : value.toFixed(1)) + "°C";
+  }
+
+  function curveX(temperature) {
+    return Math.min(280, Math.max(0, (temperature - 20) / 60 * 280));
+  }
+
+  function curveY(speed) {
+    return 88 - Math.min(100, Math.max(0, speed)) / 100 * 84;
+  }
+
+  function buildSmoothPath(points) {
+    if (!points.length) return "";
+    if (points.length === 1) {
+      return "M" + curveX(points[0].t).toFixed(2) + "," + curveY(points[0].s).toFixed(2);
+    }
+    var xs = points.map(function (point) { return curveX(point.t); });
+    var ys = points.map(function (point) { return curveY(point.s); });
+    var slopes = [];
+    for (var i = 0; i < points.length - 1; i++) {
+      slopes.push((ys[i + 1] - ys[i]) / (xs[i + 1] - xs[i]));
+    }
+    var tangents = [slopes[0]];
+    for (var j = 1; j < points.length - 1; j++) {
+      tangents.push(slopes[j - 1] * slopes[j] <= 0 ? 0 : (slopes[j - 1] + slopes[j]) / 2);
+    }
+    tangents.push(slopes[slopes.length - 1]);
+    for (var k = 0; k < slopes.length; k++) {
+      if (slopes[k] === 0) {
+        tangents[k] = 0;
+        tangents[k + 1] = 0;
+        continue;
+      }
+      var a = tangents[k] / slopes[k];
+      var b = tangents[k + 1] / slopes[k];
+      var size = Math.hypot(a, b);
+      if (size > 3) {
+        tangents[k] = 3 * a / size * slopes[k];
+        tangents[k + 1] = 3 * b / size * slopes[k];
+      }
+    }
+    var d = "M" + xs[0].toFixed(2) + "," + ys[0].toFixed(2);
+    for (var n = 0; n < points.length - 1; n++) {
+      var third = (xs[n + 1] - xs[n]) / 3;
+      d += "C" + (xs[n] + third * tangents[n]).toFixed(2) + "," + (ys[n] + third * tangents[n]).toFixed(2) +
+        " " + (xs[n + 1] - third * tangents[n + 1]).toFixed(2) + "," + (ys[n + 1] - third * tangents[n + 1]).toFixed(2) +
+        " " + xs[n + 1].toFixed(2) + "," + ys[n + 1].toFixed(2);
+    }
+    return d;
+  }
+
+  function drawCurveChart() {
+    var path = document.getElementById("coolingCurvePath");
+    var marker = document.getElementById("coolingCurveMarker");
+    var graph = document.getElementById("coolingGraph");
+    if (!path || !marker) return;
+    while (marker.firstChild) marker.removeChild(marker.firstChild);
+
+    if (curveMode === "stock") {
+      var step = "M" + curveX(20).toFixed(2) + "," + curveY(0).toFixed(2) +
+        "L" + curveX(44).toFixed(2) + "," + curveY(0).toFixed(2) +
+        "L" + curveX(44).toFixed(2) + "," + curveY(20).toFixed(2) +
+        "L" + curveX(48).toFixed(2) + "," + curveY(20).toFixed(2) +
+        "L" + curveX(48).toFixed(2) + "," + curveY(40).toFixed(2) +
+        "L" + curveX(53).toFixed(2) + "," + curveY(40).toFixed(2) +
+        "L" + curveX(53).toFixed(2) + "," + curveY(70).toFixed(2) +
+        "L" + curveX(80).toFixed(2) + "," + curveY(70).toFixed(2);
+      path.setAttribute("d", step);
+      if (graph) graph.setAttribute("aria-label", "原厂阶梯曲线：44°C 输出 20%，48°C 输出 40%，53°C 输出 70%");
+      return;
+    }
+
+    var sorted = curvePoints.slice().sort(function (a, b) { return a.t - b.t; });
+    var drawn = sorted.slice();
+    if (drawn[0].t > 20) {
+      drawn.unshift({ t: 20, s: drawn[0].s });
+    }
+    if (drawn[drawn.length - 1].t < 80) {
+      drawn.push({ t: 80, s: 100 });
+    }
+    path.setAttribute("d", buildSmoothPath(drawn));
+
+    var point = curvePoints[curveSel];
+    if (point) {
+      var px = curveX(point.t);
+      var py = curveY(point.s);
+      var guide = document.createElementNS("http://www.w3.org/2000/svg", "line");
+      guide.setAttribute("x1", px.toFixed(2));
+      guide.setAttribute("y1", py.toFixed(2));
+      guide.setAttribute("x2", px.toFixed(2));
+      guide.setAttribute("y2", "88");
+      marker.appendChild(guide);
+      var dot = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+      dot.setAttribute("cx", px.toFixed(2));
+      dot.setAttribute("cy", py.toFixed(2));
+      dot.setAttribute("r", "2.6");
+      marker.appendChild(dot);
+      if (graph) {
+        graph.setAttribute("aria-label", "自定义曲线：当前控制点 " + formatCurveTemp(point.t) + " 输出 " + point.s + "%，80°C 满速");
+      }
+    }
+  }
+
+  function setCurveMode(mode) {
+    curveMode = mode === "stock" ? "stock" : "custom";
+    document.querySelectorAll("[data-curve-mode]").forEach(function (button) {
+      var active = button.dataset.curveMode === curveMode;
+      button.setAttribute("aria-selected", active ? "true" : "false");
+      button.tabIndex = active ? 0 : -1;
+    });
+    var stockPanel = document.getElementById("cooling-panel-stock");
+    var customPanel = document.getElementById("cooling-panel-custom");
+    if (stockPanel) stockPanel.hidden = curveMode !== "stock";
+    if (customPanel) customPanel.hidden = curveMode !== "custom";
+    var summary = document.getElementById("coolingSummary");
+    if (summary) {
+      summary.textContent = curveMode === "stock"
+        ? "原厂阶梯 · 49°C 当前输出 20%"
+        : "49°C · 预计 20% · 80°C 满速";
+    }
+    drawCurveChart();
+  }
+
+  function renderCurve() {
+    var point = curvePoints[curveSel];
+    var count = document.getElementById("coolingPointCount");
+    if (count) count.textContent = "控制点 " + (curveSel + 1) + "/" + curvePoints.length;
+    var tempValue = document.getElementById("curveTempValue");
+    var speedValue = document.getElementById("curveSpeedValue");
+    if (tempValue) tempValue.textContent = point ? formatCurveTemp(point.t) : "—";
+    if (speedValue) speedValue.textContent = point ? point.s + "%" : "—";
+
+    var prev = curvePoints[curveSel - 1];
+    var next = curvePoints[curveSel + 1];
+    var tempDown = document.getElementById("curveTempDown");
+    var tempUp = document.getElementById("curveTempUp");
+    var speedDown = document.getElementById("curveSpeedDown");
+    var speedUp = document.getElementById("curveSpeedUp");
+    if (tempDown) tempDown.disabled = !point || (prev ? point.t <= prev.t + 0.49 : point.t <= 20);
+    if (tempUp) tempUp.disabled = !point || (next ? point.t >= next.t - 0.49 : point.t >= 80);
+    if (speedDown) speedDown.disabled = !point || point.s <= 0;
+    if (speedUp) speedUp.disabled = !point || point.s >= 100;
+
+    var prevBtn = document.getElementById("curvePrev");
+    var nextBtn = document.getElementById("curveNext");
+    var deleteBtn = document.getElementById("curveDelete");
+    var addBtn = document.getElementById("curveAdd");
+    if (prevBtn) prevBtn.disabled = curveSel <= 0;
+    if (nextBtn) nextBtn.disabled = curveSel >= curvePoints.length - 1;
+    if (deleteBtn) deleteBtn.disabled = curvePoints.length <= 2;
+    if (addBtn) addBtn.disabled = curvePoints.length >= 8;
+    drawCurveChart();
+  }
+
+  function selectCurvePoint(index) {
+    curveSel = Math.min(curvePoints.length - 1, Math.max(0, index));
+    renderCurve();
+  }
+
+  function stepCurveTemp(delta) {
+    var point = curvePoints[curveSel];
+    if (!point) return;
+    var prev = curvePoints[curveSel - 1];
+    var next = curvePoints[curveSel + 1];
+    var min = prev ? prev.t + 0.5 : 20;
+    var max = next ? next.t - 0.5 : 80;
+    var value = Math.min(max, Math.max(min, point.t + delta));
+    point.t = Math.round(value * 2) / 2;
+    renderCurve();
+  }
+
+  function stepCurveSpeed(delta) {
+    var point = curvePoints[curveSel];
+    if (!point) return;
+    point.s = Math.min(100, Math.max(0, point.s + delta));
+    renderCurve();
+  }
+
+  function deleteCurvePoint() {
+    if (curvePoints.length <= 2) return;
+    var removed = curvePoints.splice(curveSel, 1)[0];
+    if (curveSel > curvePoints.length - 1) curveSel = curvePoints.length - 1;
+    renderCurve();
+    showToast("已删除 " + formatCurveTemp(removed.t) + " 控制点");
+  }
+
+  function addCurvePoint() {
+    if (curvePoints.length >= 8) return;
+    var point = curvePoints[curveSel];
+    var next = curvePoints[curveSel + 1];
+    var temperature;
+    var speed;
+    if (next) {
+      temperature = Math.round(((point.t + next.t) / 2) * 2) / 2;
+      speed = Math.round((point.s + next.s) / 2);
+    } else {
+      temperature = Math.min(80, point.t + 2);
+      speed = Math.min(100, point.s + 5);
+    }
+    if ((next && (temperature <= point.t || temperature >= next.t)) || (!next && temperature <= point.t)) return;
+    curvePoints.splice(curveSel + 1, 0, { t: temperature, s: speed });
+    curveSel += 1;
+    renderCurve();
+    showToast("已新增 " + formatCurveTemp(temperature) + " 控制点");
+  }
+
+  function resetCurve() {
+    curvePoints = CURVE_DEFAULT.map(function (point) { return { t: point.t, s: point.s }; });
+    curveSel = 2;
+    renderCurve();
+    showToast("已恢复默认 8 点曲线");
+  }
+
+  document.querySelectorAll("[data-curve-mode]").forEach(function (button) {
+    button.addEventListener("click", function () {
+      setCurveMode(button.dataset.curveMode);
+    });
+    button.addEventListener("keydown", function (event) {
+      if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
+      event.preventDefault();
+      var tabs = Array.prototype.slice.call(document.querySelectorAll("[data-curve-mode]"));
+      var index = tabs.indexOf(button);
+      var delta = event.key === "ArrowRight" ? 1 : -1;
+      var target = tabs[(index + delta + tabs.length) % tabs.length];
+      setCurveMode(target.dataset.curveMode);
+      target.focus();
+    });
+  });
+
+  var curveBackBtn = document.getElementById("coolingCurveBack");
+  if (curveBackBtn) curveBackBtn.addEventListener("click", leaveCurvePage);
+
+  var curvePrevBtn = document.getElementById("curvePrev");
+  if (curvePrevBtn) curvePrevBtn.addEventListener("click", function () { selectCurvePoint(curveSel - 1); });
+
+  var curveNextBtn = document.getElementById("curveNext");
+  if (curveNextBtn) curveNextBtn.addEventListener("click", function () { selectCurvePoint(curveSel + 1); });
+
+  var curveDeleteBtn = document.getElementById("curveDelete");
+  if (curveDeleteBtn) curveDeleteBtn.addEventListener("click", deleteCurvePoint);
+
+  var curveAddBtn = document.getElementById("curveAdd");
+  if (curveAddBtn) curveAddBtn.addEventListener("click", addCurvePoint);
+
+  var curveTempDownBtn = document.getElementById("curveTempDown");
+  if (curveTempDownBtn) curveTempDownBtn.addEventListener("click", function () { stepCurveTemp(-0.5); });
+
+  var curveTempUpBtn = document.getElementById("curveTempUp");
+  if (curveTempUpBtn) curveTempUpBtn.addEventListener("click", function () { stepCurveTemp(0.5); });
+
+  var curveSpeedDownBtn = document.getElementById("curveSpeedDown");
+  if (curveSpeedDownBtn) curveSpeedDownBtn.addEventListener("click", function () { stepCurveSpeed(-1); });
+
+  var curveSpeedUpBtn = document.getElementById("curveSpeedUp");
+  if (curveSpeedUpBtn) curveSpeedUpBtn.addEventListener("click", function () { stepCurveSpeed(1); });
+
+  var curveResetBtn = document.getElementById("curveReset");
+  if (curveResetBtn) curveResetBtn.addEventListener("click", resetCurve);
+
+  var curveApplyBtn = document.getElementById("curveApply");
+  if (curveApplyBtn) {
+    curveApplyBtn.addEventListener("click", function () {
+      var isCustom = curveApplied === "custom";
+      openConfirm({
+        title: isCustom ? "保存并应用这条曲线？" : "保存曲线并切换至自定义模式？",
+        body: "当前温度预计输出 20%。",
+        okLabel: "确认",
+        danger: false,
+        trigger: curveApplyBtn,
+        onConfirm: function () {
+          setDeviceFan("custom");
+          showToast("曲线已应用 · 自定义模式");
+        }
+      });
+    });
+  }
+
+  document.querySelectorAll(".tile[data-page]").forEach(function (button) {
+    button.addEventListener("click", function () {
+      openPage(button.dataset.page, button);
+    });
+  });
+
+  document.querySelectorAll("[data-back]").forEach(function (button) {
+    button.addEventListener("click", closePage);
+  });
+
+  themeTile.addEventListener("click", function () {
+    applyTheme(currentTheme() === "day" ? "night" : "day", true);
+  });
+
+  els.pxPrimary.addEventListener("click", function () {
+    if (state.engine !== "singbox" || state.switching) return;
+    if (state.service === "running") {
+      openConfirm({
+        title: "停止服务？",
+        body: "停止后设备将直连，分流与免流暂停。",
+        okLabel: "停止",
+        danger: true,
+        trigger: els.pxPrimary,
+        onConfirm: stopSingbox
+      });
+    } else if (state.service === "stopped") {
+      startSingbox();
+    }
+  });
+
+  els.pxSecondary.addEventListener("click", function () {
+    if (state.engine !== "singbox" || state.switching || state.service !== "running") return;
+    openConfirm({
+      title: "重启服务？",
+      body: "连接会短暂中断，约 3 秒后恢复。",
+      okLabel: "重启",
+      danger: false,
+      trigger: els.pxSecondary,
+      onConfirm: restartSingbox
+    });
+  });
+
+  els.pxToSingbox.addEventListener("click", function () {
+    if (state.switching || state.engine === "singbox") return;
+    openConfirm({
+      title: "切到 sing-box？",
+      body: "将停止 mihomo 回滚核心并恢复 sing-box 服务。",
+      okLabel: "切到",
+      danger: false,
+      trigger: els.pxToSingbox,
+      onConfirm: function () { switchEngine("singbox"); }
+    });
+  });
+
+  els.pxToMihomo.addEventListener("click", function () {
+    if (state.switching || state.engine === "mihomo") return;
+    var retry = state.engine === "error";
+    openConfirm({
+      title: retry ? "重试 mihomo？" : "切回 mihomo？",
+      body: retry ? "mihomo 进程缺失；将重新启动回滚核心。" :
+        "将停止 sing-box 并启用 mihomo 回滚核心，期间断网约 3 秒。",
+      okLabel: retry ? "重试" : "切回",
+      danger: false,
+      trigger: els.pxToMihomo,
+      onConfirm: function () { switchEngine("mihomo"); }
+    });
+  });
+
+  document.querySelectorAll("[data-demo]").forEach(function (button) {
+    button.addEventListener("click", function () {
+      if (!confirmSheet.hidden) return;
+      var mode = button.dataset.demo;
+      var proxyTile = document.querySelector('.tile[data-page="proxy"]');
+      window.clearTimeout(sbTimer);
+      window.clearTimeout(engineTimer);
+      state.switching = false;
+      state.service = "running";
+      state.engine = mode === "mihomo" ? "mihomo" : mode === "error" ? "error" : "singbox";
+      state.message = mode === "mihomo" ? "mihomo 回滚态" :
+        mode === "error" ? "mihomo 进程缺失，可重试" : "sing-box 运行中";
+      updateProxyUI();
+      if (screen.dataset.view !== "proxy") {
+        openPage("proxy", proxyTile);
+      }
+      showToast(mode === "mihomo" ? "已预览 mihomo 回滚态" :
+        mode === "error" ? "已预览异常态" : "已预览 sing-box 正常态");
+    });
+  });
+
+  confirmCancel.addEventListener("click", function () {
+    closeConfirm(false);
+  });
+
+  confirmOk.addEventListener("click", function () {
+    closeConfirm(true);
+  });
+
+  sheetScrim.addEventListener("click", function () {
+    closeConfirm(false);
+  });
+
+  document.querySelectorAll("[data-preset]").forEach(function (button) {
+    button.addEventListener("click", function () {
+      var preset = button.dataset.preset;
+      state.uiPreset = preset;
+      if (preset === "custom") {
+        updateWanbalUI();
+      } else {
+        setPreset(preset, true);
+      }
+    });
+  });
+
+  document.querySelectorAll(".chip").forEach(function (chip) {
+    chip.addEventListener("click", function () {
+      var set = state.custom[chip.dataset.proto];
+      var card = chip.dataset.card;
+      if (set.has(card)) {
+        set.delete(card);
+      } else {
+        set.add(card);
+      }
+      updateChips();
+      validateCustom();
+    });
+  });
+
+  els.applyCustom.addEventListener("click", function () {
+    if (state.custom.tcp.size === 0 || state.custom.udp.size === 0) {
+      validateCustom();
+      return;
+    }
+    state.preset = "custom";
+    state.uiPreset = "custom";
+    updateWanbalUI();
+    showToast("分流已应用，下一轮生效");
+  });
+
+  document.querySelectorAll('[role="tab"][data-carrier]').forEach(function (tab) {
+    tab.addEventListener("click", function () {
+      setCarrier(tab.dataset.carrier);
+    });
+    tab.addEventListener("keydown", function (event) {
+      if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
+      event.preventDefault();
+      var tabs = Array.prototype.slice.call(document.querySelectorAll('[role="tab"][data-carrier]'));
+      var index = tabs.indexOf(tab);
+      var delta = event.key === "ArrowRight" ? 1 : -1;
+      var next = tabs[(index + delta + tabs.length) % tabs.length];
+      setCarrier(next.dataset.carrier);
+      next.focus();
+    });
+  });
+
+  els.balanceRefresh.addEventListener("click", function () {
+    if (els.balanceRefresh.disabled) return;
+    els.balanceRefresh.disabled = true;
+    els.balanceRefresh.textContent = "刷新中…";
+    window.setTimeout(function () {
+      els.balanceRefresh.disabled = false;
+      els.balanceRefresh.textContent = "刷新";
+      var now = new Date();
+      var hh = String(now.getHours()).padStart(2, "0");
+      var mm = String(now.getMinutes()).padStart(2, "0");
+      els.balanceUpdated.textContent = "更新于 " + hh + ":" + mm;
+      showToast("余量已刷新");
+    }, 700);
+  });
+
+  document.addEventListener("keydown", function (event) {
+    if (event.key !== "Escape") return;
+    if (!confirmSheet.hidden) {
+      closeConfirm(false);
+      return;
+    }
+    if (screen.dataset.view !== "home") {
+      if (screen.dataset.view === "cooling-curve") {
+        leaveCurvePage();
+      } else {
+        closePage();
+      }
+    }
+  });
+
+  function fitScreen() {
+    var widthScale = (window.innerWidth - 60) / 320;
+    var heightScale = (window.innerHeight - 160) / 480;
+    var scale = Math.max(0.6, Math.min(1.5, widthScale, heightScale));
+    root.style.setProperty("--scale", scale.toFixed(3));
+  }
+
+  window.addEventListener("resize", fitScreen);
+
+  applyTheme(currentTheme(), false);
+  setClock();
+  window.setInterval(setClock, 30000);
+  fitScreen();
+  setCarrier("unicom");
+  setDeviceTab("system");
+  setDeviceFan("custom");
+  setDeviceLiquid("auto");
+  renderDeviceWifi();
+  setCurveMode("custom");
+  renderCurve();
+  updateProxyUI();
+  updateWanbalUI();
+})();
+</script>
+
+
+</body></html>

@@ -1,5 +1,5 @@
 #!/bin/sh
-# B22 does not provide the standard /etc/init.d/rcS. Make NTP's actual
+# B20 does not provide the standard /etc/init.d/rcS. Make NTP's actual
 # service entry point depend on clock preparation, independent of rc.d order.
 set -eu
 NTP_INIT="${NTP_INIT:-/etc/init.d/zte_topsw_ntp}"
@@ -24,7 +24,9 @@ awk -v mode="$MODE" '
         }
         if ($0 ~ /^[ \t]*procd_open_instance[ \t]*$/ && mode == "install") {
             print "    # Begin TopFlow UTC NTP observer."
-            print "    procd_append_param env LD_PRELOAD=/data/timekeeper/clock-observer.so"
+            print "    if [ -f /data/timekeeper/clock-observer.so ]; then"
+            print "        procd_append_param env LD_PRELOAD=/data/timekeeper/clock-observer.so"
+            print "    fi"
             print "    # End TopFlow UTC NTP observer."
         }
     }

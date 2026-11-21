@@ -1,0 +1,28 @@
+#!/bin/sh /etc/rc.common
+
+# topflow-ota-block — OTA 冻结看护服务（脚本本体 /data/topflow-ota-block/ota-block.sh）
+# 2026-10-14 上线；语义: start = apply + procd 常驻 keeper(30s)
+# stop 只停 keeper（规则/阻断保留）；全量回滚用 ota-block.sh revert
+
+START=96
+STOP=10
+
+USE_PROCD=1
+
+start_service() {
+	[ -f /data/topflow-ota-block/ota-block.sh ] || {
+		logger -t topflow-ota-block "ota-block.sh missing, service not started"
+		return 1
+	}
+	/bin/sh /data/topflow-ota-block/ota-block.sh apply
+	procd_open_instance
+	procd_set_param command /bin/sh /data/topflow-ota-block/ota-block.sh keeper
+	procd_set_param respawn 3600 5 60
+	procd_set_param stdout 0
+	procd_set_param stderr 0
+	procd_close_instance
+}
+
+stop_service() {
+	logger -t topflow-ota-block "keeper stopped (block rules kept; use ota-block.sh revert to remove)"
+}

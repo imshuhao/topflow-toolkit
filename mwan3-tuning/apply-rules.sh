@@ -1,7 +1,7 @@
 #!/bin/sh
 
-# Install custom Mihomo/LAN rule precedence and tune cellular quality without
-# changing WAN mode. Stock B20/B22 already order HTTPS before the default rule.
+# Repair the currently saved rule order and cellular quality policy without
+# changing WAN mode.
 
 set -u
 
@@ -11,14 +11,33 @@ LOCK_FILE=/tmp/mwan3-tuning.lock
 HOTPLUG_SOURCE="$BASE/90-mwan3-selective-conntrack"
 HOTPLUG_TARGET=/etc/hotplug.d/iface/90-mwan3-selective-conntrack
 TRACK_IPS='199.7.83.42 180.76.76.76 192.58.128.30'
-MIHOMO_SOURCE='192.168.11.11'
+# 本机 mihomo netns 地址；11.11 为历史作者快照，实机从未命中（2026-09-10 修正）
+MIHOMO_SOURCE='192.168.0.254'
 
 if [ -f "$CONFIG_FILE" ]; then
-	# Root-owned shell assignments only; this is not a user-supplied network
-	# response or an untrusted WebUI value.
+	# Root-owned shell assignments only (see config.example). Still refuse to
+	# source anything that is not root-owned or is world-writable, so a
+	# compromised non-root account cannot inject shell into this path.
+	# Keep the file mode 0644 (or tighter) and owner root on the device.
+	if [ -n "$(find "$CONFIG_FILE" ! -user root -print 2>/dev/null)" ] \
+		|| [ -n "$(find "$CONFIG_FILE" -perm -0002 -print 2>/dev/null)" ]; then
+		echo "refusing to source $CONFIG_FILE (must be root-owned and not world-writable)" >&2
+		exit 1
+	fi
 	# shellcheck source=/dev/null
 	. "$CONFIG_FILE"
 fi
+
+# Default balanced weights: 5G gets 50%, each 4G gets 25%.
+: "${WEIGHT_5G:=6}"
+: "${WEIGHT_4G_1:=3}"
+: "${WEIGHT_4G_2:=3}"
+
+# V3E1net0 (4G#1) shows latency spikes past the generic 1s/1000ms budget
+# (1281-1914ms recorded; flapped 2026-09-15).  Give that interface alone a
+# looser reply timeout and failure latency threshold; recovery stays 700ms.
+: "${TRACK_TIMEOUT_4G_1:=2}"
+: "${TRACK_FAILURE_LATENCY_4G_1:=2000}"
 
 case "$MIHOMO_SOURCE" in
 	''|*[!0-9.]*) echo "invalid MIHOMO_SOURCE" >&2; exit 2 ;;
@@ -63,6 +82,12 @@ for interface in zte_wan zte_mwan2 zte_mwan3 zte_mwan4; do
 	uci set mwan3.$interface.recovery_latency='700'
 done
 
+# zte_mwan3-only track budget override (must win over the generic loop above).
+if [ "$(uci -q get mwan3.zte_mwan3)" = "interface" ]; then
+	uci set mwan3.zte_mwan3.timeout="$TRACK_TIMEOUT_4G_1"
+	uci set mwan3.zte_mwan3.failure_latency="$TRACK_FAILURE_LATENCY_4G_1"
+fi
+
 uci -q delete mwan3.mihomo_https
 uci -q delete mwan3.https
 uci -q delete mwan3.default_rule_v4
@@ -90,6 +115,12 @@ uci set mwan3.default_rule_v4.family='ipv4'
 uci set mwan3.default_rule_v4.proto='all'
 uci set mwan3.default_rule_v4.logging='1'
 uci set mwan3.default_rule_v4.sticky='0'
+
+# Apply balanced weights so 5G and both 4G cards are used proportionally.
+uci set mwan3.zte_mwan2_m1_w1.weight="$WEIGHT_5G"
+uci set mwan3.zte_mwan3_m1_w1.weight="$WEIGHT_4G_1"
+uci set mwan3.zte_mwan4_m1_w1.weight="$WEIGHT_4G_2"
+
 uci commit zwrt_router
 uci commit mwan3
 

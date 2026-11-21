@@ -23,6 +23,8 @@ for file in \
     sdx75-set-mwan3-wrapper.sh \
     activate.sh \
     config.example \
+    recover.sh \
+    install-mode-guard.sh \
     install-boot-hook.sh; do
     [ -f "$HERE/$file" ] || {
         echo "缺少安装文件：$HERE/$file" >&2
@@ -68,7 +70,7 @@ else
     stock_sha="$(shasum -a 256 "$TEMP_DIR/stock.sh" | awk '{print $1}')"
 fi
 [ "$stock_sha" = "$KNOWN_STOCK_SHA" ] || {
-    echo "原厂脚本摘要不匹配；当前公开补丁只支持已验证的 B22 文件（与 B20 同哈希）" >&2
+    echo "原厂脚本摘要不匹配；当前公开补丁只支持已验证的 B20 文件" >&2
     exit 1
 }
 
@@ -103,6 +105,8 @@ for file in \
     sdx75-set-mwan3-wrapper.sh \
     activate.sh \
     config.example \
+    recover.sh \
+    install-mode-guard.sh \
     install-boot-hook.sh; do
     "$ADB_BIN" push "$HERE/$file" "$BASE/.install/$file" >/dev/null
 done
@@ -123,11 +127,16 @@ done
     mv -f '$BASE/.install/90-mwan3-selective-conntrack' '$BASE/90-mwan3-selective-conntrack'
     mv -f '$BASE/.install/sdx75-set-mwan3-wrapper.sh' '$BASE/sdx75-set-mwan3-wrapper.sh'
     mv -f '$BASE/.install/activate.sh' '$BASE/activate.sh'
+    mv -f '$BASE/.install/recover.sh' '$BASE/recover.sh'
+    mv -f '$BASE/.install/install-mode-guard.sh' '$BASE/install-mode-guard.sh'
     mv -f '$BASE/.install/install-boot-hook.sh' '$BASE/install-boot-hook.sh'
     [ -f '$BASE/config' ] || cp '$BASE/.install/config.example' '$BASE/config'
     chmod 0600 '$BASE/config'
     rm -rf '$BASE/.install'
+    # 仓库脚本可能为 CRLF；shebang/source 带 \r 会断 exec 与变量赋值
+    for f in '$BASE/apply-rules.sh' '$BASE/90-mwan3-selective-conntrack' '$BASE/sdx75-set-mwan3-wrapper.sh' '$BASE/activate.sh' '$BASE/recover.sh' '$BASE/install-mode-guard.sh' '$BASE/install-boot-hook.sh' '$BASE/sdx75_set_mwan3.stock.sh' '$BASE/config'; do tr -d '\r' <"\$f" >"\$f.lf" && cat "\$f.lf" >"\$f" && rm -f "\$f.lf"; done
     '$BASE/install-boot-hook.sh'
+    '$BASE/install-mode-guard.sh'
     '$BASE/activate.sh'
     sync
 "

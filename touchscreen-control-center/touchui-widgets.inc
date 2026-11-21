@@ -34,6 +34,7 @@ static void set_label_text_if_changed(lv_obj_t *label, const char *text)
 
 static void center_button_label(lv_obj_t *label)
 {
+    if (!label) return; /* 分配失败时 label 为 NULL，防解引用崩触屏（H4） */
     if (lv_obj_update_layout_p)
         lv_obj_update_layout_p(label);
     lv_obj_align_p(label, LV_ALIGN_CENTER, 0, 0);
@@ -83,7 +84,11 @@ static lv_obj_t *make_button(lv_obj_t *parent, const char *text, int x, int y, i
     if (lv_obj_set_style_pad_top_p) lv_obj_set_style_pad_top_p(button, 0, 0);
     if (lv_obj_set_style_pad_bottom_p) lv_obj_set_style_pad_bottom_p(button, 0, 0);
     label = lv_label_create_p(button);
-    if (!label) return NULL;
+    if (!label) {
+        /* label 失败时删掉 button，避免半初始化按钮与泄漏 */
+        if (lv_obj_del_p) lv_obj_del_p(button);
+        return NULL;
+    }
     if (real_obj_set_style_text_font && ui_font)
         real_obj_set_style_text_font(label, ui_font, 0);
     set_text_color(label, COLOR_TEXT);
